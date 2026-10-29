@@ -61,13 +61,13 @@ struct ReaderTopHUD: View {
             } label: {
                 HStack(spacing: 5) {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 10, weight: .bold))
+                        .font(.system(size: 9, weight: .bold))
                     Text("Библиотека")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.system(size: 10.5, weight: .semibold))
                 }
                 .foregroundStyle(Theme.textSecondary)
-                .padding(.horizontal, 10)
-                .frame(height: 30)
+                .padding(.horizontal, 8)
+                .frame(height: 24)
                 .background(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(Color.white.opacity(0.045))
@@ -78,21 +78,28 @@ struct ReaderTopHUD: View {
 
             Rectangle()
                 .fill(Color.white.opacity(0.10))
-                .frame(width: 1, height: 20)
+                .frame(width: 1, height: 16)
 
-            VStack(alignment: .leading, spacing: 1) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(session.title)
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(Theme.textPrimary)
                     .lineLimit(1)
                     .truncationMode(.middle)
-                Text(session.chapterTitle)
-                    .font(.system(size: 9.5, weight: .medium))
-                    .foregroundStyle(Theme.textTertiary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                    .layoutPriority(1)
+
+                if let chapterSuffix {
+                    Text("·")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Theme.textTertiary.opacity(0.7))
+                    Text(chapterSuffix)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(Theme.textTertiary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
             }
-            .frame(maxWidth: 300, alignment: .leading)
+            .frame(maxWidth: 360, alignment: .leading)
 
             Spacer(minLength: 8)
 
@@ -113,8 +120,7 @@ struct ReaderTopHUD: View {
         }
         .padding(.horizontal, 10)
         .padding(.leading, leadingInset)
-        .padding(.vertical, 8)
-        .modifier(HUDChrome())
+        .modifier(HUDChrome(corner: 14))
         .opacity(session.chrome.isTopVisible ? 1 : 0)
         .offset(y: session.chrome.isTopVisible ? 0 : -12)
         .animation(.smooth(duration: 0.22), value: session.chrome.isTopVisible)
@@ -127,6 +133,16 @@ struct ReaderTopHUD: View {
         }
     }
 
+    /// Chapter folders often repeat the manga name; avoid showing it twice on
+    /// the single-line top bar.
+    private var chapterSuffix: String? {
+        let chapter = session.chapterTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let title = session.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !chapter.isEmpty else { return nil }
+        guard chapter.localizedCaseInsensitiveCompare(title) != .orderedSame else { return nil }
+        return chapter
+    }
+
     private var layoutPicker: some View {
         HStack(spacing: 2) {
             ForEach(LayoutMode.allCases) { mode in
@@ -134,11 +150,11 @@ struct ReaderTopHUD: View {
                     session.layoutMode = mode
                 } label: {
                     Image(systemName: mode.symbol)
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(
                             session.layoutMode == mode ? Theme.textPrimary : Theme.textTertiary
                         )
-                        .frame(width: 30, height: 26)
+                        .frame(width: 24, height: 24)
                         .background(
                             RoundedRectangle(cornerRadius: 6, style: .continuous)
                                 .fill(session.layoutMode == mode ? Color.white.opacity(0.13) : .clear)
@@ -149,9 +165,9 @@ struct ReaderTopHUD: View {
                 .help(mode.title)
             }
         }
-        .padding(3)
+        .padding(2)
         .background(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(Color.black.opacity(0.18))
         )
     }
@@ -170,14 +186,14 @@ struct ReaderTopHUD: View {
                 Image(systemName: session.fitMode.symbol)
                     .font(.system(size: 9, weight: .semibold))
                 Text(session.fitMode.shortTitle)
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.system(size: 9.5, weight: .semibold))
                 Image(systemName: "chevron.down")
                     .font(.system(size: 7, weight: .bold))
                     .foregroundStyle(Theme.textTertiary)
             }
             .foregroundStyle(Theme.textSecondary)
-            .padding(.horizontal, 9)
-            .frame(height: 30)
+            .padding(.horizontal, 8)
+            .frame(height: 24)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(Color.white.opacity(0.045))
@@ -197,7 +213,7 @@ struct ReaderTopHUD: View {
                 .font(.system(size: 9, weight: .bold, design: .monospaced))
                 .tracking(0.4)
                 .foregroundStyle(Theme.textSecondary)
-                .frame(width: 36, height: 30)
+                .frame(width: 34, height: 24)
                 .background(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(Color.white.opacity(0.045))
@@ -212,9 +228,9 @@ struct ReaderTopHUD: View {
             session.resetZoom()
         } label: {
             Text("\(Int((session.zoom * 100).rounded()))%")
-                .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                .font(.system(size: 9, weight: .semibold, design: .monospaced))
                 .foregroundStyle(Theme.textSecondary)
-                .frame(width: 48, height: 30)
+                .frame(width: 46, height: 24)
                 .background(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(Color.white.opacity(0.045))
