@@ -14,18 +14,7 @@ struct LibraryGridView: View {
     var body: some View {
         ZStack {
             background
-
-            if model.isLoadingProject {
-                loadingView
-            } else if model.mangas.isEmpty {
-                EmptyProjectView(
-                    onRefresh: { model.refresh() },
-                    onChoose: { model.chooseProject() },
-                    onReveal: { model.revealProject() }
-                )
-            } else {
-                content
-            }
+            content
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay(alignment: .top) {
@@ -38,6 +27,32 @@ struct LibraryGridView: View {
                 .frame(height: 36)
                 .allowsHitTesting(false)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if let collection = model.selectedCollection, !collection.isAvailable {
+            UnavailableCollectionView(
+                name: collection.name,
+                path: collection.directoryURL.path,
+                isChecking: model.scanningCollectionIDs.contains(collection.id),
+                onRetry: { model.scan(collectionID: collection.id) },
+                onRemove: { model.removeCollection(collection.id) },
+                onReveal: { model.reveal(collection: collection) }
+            )
+        } else if model.isLoadingSelectedCollection {
+            loadingView
+        } else if model.selectedCollection == nil {
+            selectCollectionView
+        } else if model.mangas.isEmpty {
+            EmptyCollectionView(
+                onRefresh: { model.refresh() },
+                onAddCollection: { model.addCollections() },
+                onReveal: { model.revealProject() }
+            )
+        } else {
+            libraryScroll
         }
     }
 
@@ -71,34 +86,84 @@ struct LibraryGridView: View {
         VStack(spacing: 14) {
             ProgressView()
                 .controlSize(.small)
-            Text("Сканирую библиотеку…")
+            Text("Сканирую коллекцию…")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(Theme.textSecondary)
         }
     }
 
-    private var content: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 24) {
-                topBar
-                header
-                if let target = model.continueTarget, model.searchText.isEmpty, model.filter == .all {
-                    ContinueBanner(
-                        manga: target.manga,
-                        chapter: target.chapter,
-                        pageIndex: target.pageIndex,
-                        fraction: model.progressFraction(for: target.manga),
-                        onOpen: { model.continueReading() }
-                    )
-                }
-                gridSection
-                footer
-            }
-            .padding(.horizontal, 30)
-            .padding(.top, 38)
-            .padding(.bottom, 34)
+    private var selectCollectionView: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "folder")
+                .font(.system(size: 30, weight: .light))
+                .foregroundStyle(Theme.textTertiary)
+            Text("Выберите коллекцию")
+                .font(.system(size: 18, weight: .semibold, design: .serif))
+                .foregroundStyle(Theme.textSecondary)
+            Button("Добавить коллекцию") { model.addCollections() }
+                .buttonStyle(SecondaryButtonStyle())
         }
-        .scrollIndicators(.never)
+    }
+
+    // MARK: - Main scroll content
+
+    private var libraryScroll: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 24) {
+                    Color.clear
+                        .frame(height: 0)
+                        .id("libraryTop")
+
+                    topBar
+                    header
+
+                    if model.currentPage == 0,
+                       let target = model.continueTarget,
+                       model.searchText.isEmpty,
+                       model.filter == .all {
+                        ContinueBanner(
+                            manga: target.manga,
+                            chapter: target.chapter,
+                            pageIndex: target.pageIndex,
+                            fraction: model.progressFraction(for: target.manga),
+                            onOpen: { model.continueReading() }
+                        )
+                    }
+
+                    gridSection
+                    footer
+                }
+                .padding(.horizontal, 30)
+                .padding(.top, 38)
+                .padding(.bottom, 34)
+            }
+            .scrollIndicators(.never)
+            .onChange(of: model.libraryPage) { _, _ in
+                withAnimation(Theme.snappy) {
+                    proxy.scrollTo("libraryTop", anchor: .top)
+                }
+            }
+            .onChange(of: model.searchText) { _, _ in
+                model.resetPage()
+                withAnimation(Theme.snappy) {
+                    proxy.scrollTo("libraryTop", anchor: .top)
+                }
+            }
+            .onChange(of: model.filter) { _, _ in
+                model.resetPage()
+                withAnimation(Theme.snappy) {
+                    proxy.scrollTo("libraryTop", anchor: .top)
+                }
+            }
+            .onChange(of: model.selectedCollectionID) { _, _ in
+                model.resetPage()
+                proxy.scrollTo("libraryTop", anchor: .top)
+            }
+            .onChange(of: model.filteredMangas.count) { _, _ in
+                model.clampPage()
+            }
+        }
     }
 
     // MARK: - Top bar
@@ -123,12 +188,10 @@ struct LibraryGridView: View {
                 Text("/")
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(Theme.textTertiary.opacity(0.6))
-                Text(model.projectName.uppercased())
+                Text("КОЛЛЕКЦИИ")
                     .font(.system(size: 9, weight: .bold, design: .rounded))
                     .tracking(1.4)
                     .foregroundStyle(Theme.textSecondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
             }
 
             Spacer()
@@ -151,14 +214,16 @@ struct LibraryGridView: View {
                     .overlay(Circle().strokeBorder(Theme.stroke, lineWidth: 1))
             }
             .buttonStyle(.plain)
-            .help("Обновить проект (⌘R)")
+            .help("Обновить коллекцию (⌘R)")
 
             Menu {
-                Button("Открыть проект…") { model.chooseProject() }
-                Button("Обновить") { model.refresh() }
+                Button("Добавить коллекцию…") { model.addCollections() }
+                Button("Обновить коллекцию") { model.refresh() }
                 Divider()
                 Button("Показать в Finder") { model.revealProject() }
-                Button("Забыть проект", role: .destructive) { model.forgetProject() }
+                Button("Убрать из приложения", role: .destructive) {
+                    model.removeSelectedCollection()
+                }
             } label: {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 12, weight: .semibold))
@@ -178,11 +243,19 @@ struct LibraryGridView: View {
 
     private var header: some View {
         HStack(alignment: .bottom, spacing: 20) {
-            VStack(alignment: .leading, spacing: 7) {
-                Text("Библиотека")
+            VStack(alignment: .leading, spacing: 5) {
+                Text("КОЛЛЕКЦИЯ")
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .tracking(1.6)
+                    .foregroundStyle(Theme.accentSoft)
+
+                Text(model.projectName)
                     .font(.system(size: 42, weight: .regular, design: .serif))
                     .tracking(-0.8)
                     .foregroundStyle(Theme.textPrimary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .minimumScaleFactor(0.7)
 
                 HStack(spacing: 8) {
                     Text("\(model.mangas.count) \(Format.plural(model.mangas.count, "манга", "манги", "манг"))")
@@ -197,10 +270,21 @@ struct LibraryGridView: View {
 
             Spacer(minLength: 0)
 
-            if sidebarCollapsed {
-                FilterBar(model: model)
-                    .padding(.bottom, 4)
+            VStack(alignment: .trailing, spacing: 10) {
+                if model.pageCount > 1 {
+                    PaginationBar(
+                        page: model.currentPage,
+                        pageCount: model.pageCount,
+                        onPrevious: { model.previousPage() },
+                        onNext: { model.nextPage() }
+                    )
+                }
+
+                if sidebarCollapsed {
+                    FilterBar(model: model)
+                }
             }
+            .padding(.bottom, 4)
         }
     }
 
@@ -229,7 +313,7 @@ struct LibraryGridView: View {
             .padding(.vertical, 70)
         } else {
             LazyVGrid(columns: columns, alignment: .leading, spacing: 26) {
-                ForEach(model.filteredMangas) { manga in
+                ForEach(model.pageMangas) { manga in
                     MangaGridCard(
                         manga: manga,
                         status: model.status(for: manga),
@@ -251,19 +335,81 @@ struct LibraryGridView: View {
     }
 
     private var footer: some View {
-        HStack {
-            Text("Показано \(model.filteredMangas.count) из \(model.mangas.count)")
+        HStack(spacing: 12) {
+            Text("Показано \(model.pageRangeText)")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(Theme.textTertiary)
+
             Spacer()
+
             if !model.searchText.isEmpty {
                 HStack(spacing: 5) {
                     Image(systemName: "magnifyingglass")
                     Text("«\(model.searchText)»")
                 }
+                .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(Theme.accentSoft.opacity(0.8))
             }
+
+            if model.pageCount > 1 {
+                PaginationBar(
+                    page: model.currentPage,
+                    pageCount: model.pageCount,
+                    onPrevious: { model.previousPage() },
+                    onNext: { model.nextPage() }
+                )
+            }
         }
-        .font(.system(size: 10, weight: .medium))
-        .foregroundStyle(Theme.textTertiary)
         .padding(.top, 8)
+    }
+}
+
+// MARK: - Pagination
+
+struct PaginationBar: View {
+    let page: Int
+    let pageCount: Int
+    let onPrevious: () -> Void
+    let onNext: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button(action: onPrevious) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(page > 0 ? Theme.textSecondary : Theme.textTertiary.opacity(0.4))
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(page <= 0)
+            .help("Предыдущая страница")
+
+            Text("\(page + 1) / \(pageCount)")
+                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                .foregroundStyle(Theme.textSecondary)
+                .frame(minWidth: 48)
+
+            Button(action: onNext) {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(page < pageCount - 1 ? Theme.textSecondary : Theme.textTertiary.opacity(0.4))
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(page >= pageCount - 1)
+            .help("Следующая страница")
+        }
+        .padding(.horizontal, 7)
+        .frame(height: 30)
+        .background(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(Color.white.opacity(0.05))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .strokeBorder(Theme.stroke, lineWidth: 1)
+        )
     }
 }

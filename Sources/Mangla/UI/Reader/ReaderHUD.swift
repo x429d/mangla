@@ -111,11 +111,16 @@ struct ReaderTopHUD: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .modifier(HUDChrome())
-        .opacity(session.chrome.isVisible ? 1 : 0)
-        .offset(y: session.chrome.isVisible ? 0 : -12)
-        .animation(.smooth(duration: 0.24), value: session.chrome.isVisible)
-        .allowsHitTesting(session.chrome.isVisible)
-        .onHover { session.chrome.setHovering($0) }
+        .opacity(session.chrome.isTopVisible ? 1 : 0)
+        .offset(y: session.chrome.isTopVisible ? 0 : -12)
+        .animation(.smooth(duration: 0.22), value: session.chrome.isTopVisible)
+        .allowsHitTesting(session.chrome.isTopVisible)
+        .onHover { hovering in
+            session.chrome.setTopHovered(hovering)
+            if hovering {
+                NSCursor.arrow.set()
+            }
+        }
     }
 
     private var layoutPicker: some View {
@@ -269,11 +274,16 @@ struct ReaderBottomHUD: View {
         .padding(.vertical, 8)
         .frame(maxWidth: 1000)
         .modifier(HUDChrome())
-        .opacity(session.chrome.isVisible ? 1 : 0)
-        .offset(y: session.chrome.isVisible ? 0 : 12)
-        .animation(.smooth(duration: 0.24), value: session.chrome.isVisible)
-        .allowsHitTesting(session.chrome.isVisible)
-        .onHover { session.chrome.setHovering($0) }
+        .opacity(session.chrome.isBottomVisible ? 1 : 0)
+        .offset(y: session.chrome.isBottomVisible ? 0 : 12)
+        .animation(.smooth(duration: 0.22), value: session.chrome.isBottomVisible)
+        .allowsHitTesting(session.chrome.isBottomVisible)
+        .onHover { hovering in
+            session.chrome.setBottomHovered(hovering)
+            if hovering {
+                NSCursor.arrow.set()
+            }
+        }
     }
 }
 

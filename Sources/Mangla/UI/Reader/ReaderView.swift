@@ -17,7 +17,7 @@ struct ReaderView: View {
             VStack(spacing: 0) {
                 ReaderTopHUD(session: session)
                     .padding(.horizontal, 16)
-                    .padding(.top, 12)
+                    .padding(.top, 38)
 
                 Spacer(minLength: 0)
 
@@ -35,16 +35,27 @@ struct ReaderView: View {
         }
         .background(Theme.readerBackground)
         .onAppear {
+            session.chrome.hideAll()
             WindowChrome.setTrafficLightsHidden(true)
-            session.chrome.poke()
+            NSCursor.arrow.set()
             DispatchQueue.main.async {
                 session.bridge.focus()
             }
         }
         .onDisappear {
+            session.chrome.hideAll()
             WindowChrome.setTrafficLightsHidden(false)
-            session.chrome.cancel()
+            NSCursor.arrow.set()
             NSCursor.setHiddenUntilMouseMoves(false)
+        }
+        .onChange(of: session.chrome.isTopVisible) { _, visible in
+            WindowChrome.setTrafficLightsHidden(!visible)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { _ in
+            WindowChrome.setTrafficLightsHidden(true)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didExitFullScreenNotification)) { _ in
+            WindowChrome.setTrafficLightsHidden(!session.chrome.isTopVisible)
         }
     }
 
@@ -120,7 +131,8 @@ struct EndOfChapterPill: View {
     let session: ReadingSession
 
     private var isAtEnd: Bool {
-        !session.isLoadingChapter
+        session.chrome.isBottomVisible
+            && !session.isLoadingChapter
             && session.totalPages > 0
             && session.currentPageIndex >= session.totalPages - 1
     }

@@ -5,15 +5,17 @@ import SwiftUI
 @MainActor
 @Observable
 final class AppModel {
-    // Library
-    var projectURL: URL?
-    var projectName = "Mangla"
-    var mangas: [MangaItem] = []
-    var progress: [String: MangaProgress] = [:]
-    var lastMangaID: String?
+    // Collections
+    var collections: [MangaCollection] = []
+    var selectedCollectionID: UUID?
+    /// Keyed by collection UUID string, then by manga folder path.
+    var progressByCollection: [String: [String: MangaProgress]] = [:]
+
+    // Library browsing
     var filter: LibraryFilter = .all
     var searchText = ""
-    var expandedMangaIDs: Set<String> = []
+    var libraryPage = 0
+    let pageSize = LibraryPagination.defaultPageSize
     var columnVisibility: NavigationSplitViewVisibility = .all
 
     // Reader
@@ -21,17 +23,74 @@ final class AppModel {
     var reading: ReadingSession?
 
     // Status
-    var isLoadingProject = false
-    var isScanning = false
+    var scanningCollectionIDs: Set<UUID> = []
     var errorMessage: String?
 
-    @ObservationIgnored private var scanTask: Task<Void, Never>?
-    @ObservationIgnored private var rescanTask: Task<Void, Never>?
+    @ObservationIgnored private var initialScanTask: Task<Void, Never>?
+    @ObservationIgnored private var scanTasks: [UUID: Task<Void, Never>] = [:]
+    @ObservationIgnored private var rescanTasks: [UUID: Task<Void, Never>] = [:]
+    @ObservationIgnored private var watchers: [UUID: ProjectWatcher] = [:]
+    @ObservationIgnored private var scopedURLs: [UUID: URL] = [:]
     @ObservationIgnored private var saveTask: Task<Void, Never>?
-    @ObservationIgnored private var watcher: ProjectWatcher?
-    @ObservationIgnored private var securityScopedURL: URL?
     @ObservationIgnored private var didBootstrap = false
     @ObservationIgnored private var pendingAutoReader = false
+
+    // MARK: - Active collection
+
+    var selectedCollection: MangaCollection? {
+        guard let id = selectedCollectionID else { return nil }
+        return collections.first { $0.id == id }
+    }
+
+    var selectedCollectionIndex: Int? {
+        guard let id = selectedCollectionID else { return nil }
+        return collections.firstIndex { $0.id == id }
+    }
+
+    var activeCollectionKey: String {
+        selectedCollectionID?.uuidString ?? ""
+    }
+
+    var mangas: [MangaItem] {
+        selectedCollection?.mangas ?? []
+    }
+
+    var projectURL: URL? {
+        selectedCollection?.directoryURL
+    }
+
+    var projectName: String {
+        selectedCollection?.name ?? "Коллекция"
+    }
+
+    var lastMangaID: String? {
+        get { selectedCollection?.lastMangaID }
+        set {
+            guard let index = selectedCollectionIndex else { return }
+            collections[index].lastMangaID = newValue
+        }
+    }
+
+    var progress: [String: MangaProgress] {
+        get { progressByCollection[activeCollectionKey] ?? [:] }
+        set {
+            guard let id = selectedCollectionID else { return }
+            progressByCollection[id.uuidString] = newValue
+        }
+    }
+
+    var hasCollections: Bool { !collections.isEmpty }
+
+    var isScanning: Bool { !scanningCollectionIDs.isEmpty }
+
+    var isScanningSelected: Bool {
+        guard let id = selectedCollectionID else { return false }
+        return scanningCollectionIDs.contains(id)
+    }
+
+    var isLoadingSelectedCollection: Bool {
+        isScanningSelected && mangas.isEmpty
+    }
 
     // MARK: - Bootstrap
 
@@ -39,133 +98,282 @@ final class AppModel {
         guard !didBootstrap else { return }
         didBootstrap = true
 
-        let state = StatePersistence.load()
-        progress = state?.progress ?? [:]
-        lastMangaID = state?.lastMangaID
-
         let arguments = CommandLine.arguments
         pendingAutoReader = arguments.contains("--open-reader")
 
-        var initialURL: URL?
-        var isLaunchArgument = false
+        let state = StatePersistence.load()
+        progressByCollection = state?.progress ?? [:]
+        var selectedID = state?.selectedCollectionID
+
+        loadStoredCollections(state?.collections ?? [])
+
+        if collections.isEmpty, let legacy = LegacyWorkspaceBookmark.resolveSaved(), isDirectory(legacy) {
+            let id = UUID()
+            let bookmark = SecurityBookmark.make(for: legacy)
+            collections = [
+                MangaCollection(
+                    id: id,
+                    name: legacy.lastPathComponent,
+                    directoryURL: legacy,
+                    mangas: [],
+                    isAvailable: true,
+                    lastMangaID: nil,
+                    bookmark: bookmark
+                )
+            ]
+            access(legacy, id: id)
+            selectedID = id
+        }
+
         if let index = arguments.firstIndex(of: "--project"), index + 1 < arguments.count {
-            initialURL = URL(fileURLWithPath: arguments[index + 1])
-            isLaunchArgument = true
-        } else if let saved = WorkspaceBookmark.resolve() {
-            initialURL = saved
-        } else if let path = state?.projectPath {
-            initialURL = URL(fileURLWithPath: path)
+            let url = URL(fileURLWithPath: arguments[index + 1]).standardizedFileURL
+            if isDirectory(url) {
+                if let existing = collections.first(where: { canonicalPath($0.directoryURL) == canonicalPath(url) }) {
+                    selectedID = existing.id
+                } else {
+                    let id = UUID()
+                    let bookmark = SecurityBookmark.make(for: url)
+                    collections.append(
+                        MangaCollection(
+                            id: id,
+                            name: url.lastPathComponent,
+                            directoryURL: url,
+                            mangas: [],
+                            isAvailable: true,
+                            lastMangaID: nil,
+                            bookmark: bookmark
+                        )
+                    )
+                    access(url, id: id)
+                    selectedID = id
+                }
+            } else {
+                errorMessage = "Папка коллекции недоступна: \(url.path)"
+            }
         }
 
-        guard let initialURL else {
-            isLoadingProject = false
+        if let selectedID, collections.contains(where: { $0.id == selectedID }) {
+            selectedCollectionID = selectedID
+        } else {
+            selectedCollectionID = collections.first?.id
+        }
+
+        guard !collections.isEmpty else {
+            pendingAutoReader = false
             return
         }
 
-        var isDirectory: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: initialURL.path, isDirectory: &isDirectory),
-              isDirectory.boolValue else {
-            errorMessage = "Папка проекта больше недоступна: \(initialURL.path)"
-            isLoadingProject = false
+        saveNow()
+        startInitialScans()
+    }
+
+    private func loadStoredCollections(_ records: [StoredCollection]) {
+        for record in records {
+            let fallback = URL(fileURLWithPath: record.path)
+            var resolved = record.bookmark.flatMap(SecurityBookmark.resolve) ?? fallback
+            var available = isDirectory(resolved)
+            var bookmark = record.bookmark
+
+            // Migrate the old single-project bookmark when possible.
+            if bookmark == nil,
+               let legacy = LegacyWorkspaceBookmark.resolveSaved(),
+               canonicalPath(legacy) == canonicalPath(fallback) || (!available && records.count == 1) {
+                resolved = legacy
+                available = isDirectory(legacy)
+                bookmark = SecurityBookmark.make(for: legacy)
+            }
+
+            if bookmark == nil, available {
+                bookmark = SecurityBookmark.make(for: resolved)
+            }
+
+            let name = record.name.isEmpty ? resolved.lastPathComponent : record.name
+            collections.append(
+                MangaCollection(
+                    id: record.id,
+                    name: name,
+                    directoryURL: resolved,
+                    mangas: [],
+                    isAvailable: available,
+                    lastMangaID: record.lastMangaID,
+                    bookmark: bookmark
+                )
+            )
+
+            if available {
+                access(resolved, id: record.id)
+            }
+        }
+    }
+
+    private func startInitialScans() {
+        let availableIDs = collections.filter(\.isAvailable).map(\.id)
+        guard !availableIDs.isEmpty else {
+            pendingAutoReader = false
+            saveNow()
             return
         }
 
-        let standardized = initialURL.standardizedFileURL
-        let resolvedPath = canonicalPath(standardized)
-        if let savedPath = state?.projectPath,
-           canonicalPath(URL(fileURLWithPath: savedPath)) != resolvedPath {
-            // A different project: relative-path progress keys would collide.
-            progress = [:]
-            lastMangaID = nil
+        scanningCollectionIDs.formUnion(availableIDs)
+
+        var ordered = availableIDs
+        if let selectedCollectionID, let index = ordered.firstIndex(of: selectedCollectionID) {
+            ordered.remove(at: index)
+            ordered.insert(selectedCollectionID, at: 0)
         }
 
-        if isLaunchArgument {
-            WorkspaceBookmark.save(standardized)
-        }
+        initialScanTask = Task { [weak self] in
+            guard let self else { return }
 
-        access(standardized)
-        projectURL = standardized
-        projectName = standardized.lastPathComponent
-        isLoadingProject = true
-        scan(showSpinner: true)
+            for id in ordered {
+                if Task.isCancelled { return }
+                await self.performScan(collectionID: id)
+                self.scanningCollectionIDs.remove(id)
+
+                if self.pendingAutoReader, id == self.selectedCollectionID {
+                    self.pendingAutoReader = false
+                    if let target = self.autoOpenTarget {
+                        self.openReader(
+                            manga: target.manga,
+                            chapter: target.chapter,
+                            startPage: target.pageIndex
+                        )
+                    }
+                }
+            }
+
+            self.pendingAutoReader = false
+            self.saveNow()
+        }
     }
 
     func shutdown() {
         reading?.close()
+        initialScanTask?.cancel()
+        for task in scanTasks.values { task.cancel() }
+        for task in rescanTasks.values { task.cancel() }
+        for watcher in watchers.values { watcher.stop() }
+        for url in scopedURLs.values { url.stopAccessingSecurityScopedResource() }
         saveTask?.cancel()
         StatePersistence.saveSynchronously(makeState())
-        watcher?.stop()
-        securityScopedURL?.stopAccessingSecurityScopedResource()
     }
 
-    // MARK: - Project handling
+    // MARK: - Collections
 
-    func chooseProject() {
+    func addCollections() {
         let panel = NSOpenPanel()
-        panel.title = "Выберите папку проекта"
-        panel.message = "Внутри должны лежать папки с мангой или главами."
-        panel.prompt = "Открыть проект"
+        panel.title = "Добавить коллекции"
+        panel.message = "Выберите одну или несколько папок с мангой или главами."
+        panel.prompt = "Добавить"
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
+        panel.allowsMultipleSelection = true
         panel.canCreateDirectories = false
         if let projectURL {
             panel.directoryURL = projectURL.deletingLastPathComponent()
         }
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        setProject(url)
+        guard panel.runModal() == .OK else { return }
+        addCollections(urls: panel.urls)
     }
 
-    func setProject(_ url: URL) {
-        let standardized = url.standardizedFileURL
-        if let projectURL, canonicalPath(projectURL) == canonicalPath(standardized) {
-            scan(showSpinner: true)
+    func addCollections(urls: [URL]) {
+        var added: [UUID] = []
+
+        for raw in urls {
+            let url = raw.standardizedFileURL
+            guard isDirectory(url) else { continue }
+            guard !collections.contains(where: { canonicalPath($0.directoryURL) == canonicalPath(url) }) else {
+                continue
+            }
+
+            let id = UUID()
+            let bookmark = SecurityBookmark.make(for: url)
+            collections.append(
+                MangaCollection(
+                    id: id,
+                    name: url.lastPathComponent,
+                    directoryURL: url,
+                    mangas: [],
+                    isAvailable: true,
+                    lastMangaID: nil,
+                    bookmark: bookmark
+                )
+            )
+            access(url, id: id)
+            added.append(id)
+        }
+
+        guard !added.isEmpty else {
+            if !urls.isEmpty {
+                errorMessage = "Эти коллекции уже добавлены."
+            }
             return
         }
 
-        reading?.close()
-        reading = nil
-        watcher?.stop()
-        watcher = nil
+        // Do not disrupt an active reading session; the new collections will
+        // be available in the sidebar when the reader is closed.
+        if reading == nil {
+            selectedCollectionID = added[0]
+            searchText = ""
+            filter = .all
+            libraryPage = 0
+        }
 
-        securityScopedURL?.stopAccessingSecurityScopedResource()
-        securityScopedURL = nil
-        access(standardized)
-        WorkspaceBookmark.save(standardized)
-
-        projectURL = standardized
-        projectName = standardized.lastPathComponent
-        mangas = []
-        progress = [:]
-        lastMangaID = nil
-        expandedMangaIDs = []
-        filter = .all
-        searchText = ""
-        errorMessage = nil
-        isLoadingProject = true
-        scan(showSpinner: true)
+        for id in added {
+            scan(collectionID: id)
+        }
+        saveNow()
     }
 
-    func forgetProject() {
-        reading?.close()
-        reading = nil
-        watcher?.stop()
-        watcher = nil
-        securityScopedURL?.stopAccessingSecurityScopedResource()
-        securityScopedURL = nil
-        WorkspaceBookmark.clear()
-        projectURL = nil
-        projectName = "Mangla"
-        mangas = []
-        progress = [:]
-        lastMangaID = nil
-        expandedMangaIDs = []
-        isLoadingProject = false
+    func selectCollection(_ id: UUID) {
+        guard reading == nil else { return }
+        guard collections.contains(where: { $0.id == id }) else { return }
+        guard selectedCollectionID != id else { return }
+
+        selectedCollectionID = id
+        searchText = ""
+        filter = .all
+        libraryPage = 0
+        saveNow()
+    }
+
+    func removeSelectedCollection() {
+        guard let id = selectedCollectionID else { return }
+        removeCollection(id)
+    }
+
+    func removeCollection(_ id: UUID) {
+        guard reading == nil else { return }
+
+        scanTasks[id]?.cancel()
+        scanTasks[id] = nil
+        rescanTasks[id]?.cancel()
+        rescanTasks[id] = nil
+        scanningCollectionIDs.remove(id)
+
+        watchers[id]?.stop()
+        watchers[id] = nil
+
+        if let url = scopedURLs.removeValue(forKey: id) {
+            url.stopAccessingSecurityScopedResource()
+        }
+
+        collections.removeAll { $0.id == id }
+        progressByCollection[id.uuidString] = nil
+
+        if selectedCollectionID == id {
+            selectedCollectionID = collections.first?.id
+            searchText = ""
+            filter = .all
+            libraryPage = 0
+        }
+
         saveNow()
     }
 
     func refresh() {
-        scan(showSpinner: false)
+        guard let id = selectedCollectionID else { return }
+        scan(collectionID: id)
     }
 
     func revealProject() {
@@ -173,13 +381,116 @@ final class AppModel {
         NSWorkspace.shared.activateFileViewerSelecting([projectURL])
     }
 
+    func reveal(collection: MangaCollection) {
+        NSWorkspace.shared.activateFileViewerSelecting([collection.directoryURL])
+    }
+
     func reveal(manga: MangaItem) {
         NSWorkspace.shared.activateFileViewerSelecting([manga.directoryURL])
     }
 
-    private func access(_ url: URL) {
+    // MARK: - Scanning
+
+    func scan(collectionID: UUID) {
+        guard collections.contains(where: { $0.id == collectionID }) else { return }
+
+        scanTasks[collectionID]?.cancel()
+        scanningCollectionIDs.insert(collectionID)
+
+        scanTasks[collectionID] = Task { [weak self] in
+            guard let self else { return }
+            await self.performScan(collectionID: collectionID)
+            self.scanningCollectionIDs.remove(collectionID)
+            self.scanTasks[collectionID] = nil
+            self.saveNow()
+        }
+    }
+
+    private func performScan(collectionID: UUID) async {
+        guard let collection = collections.first(where: { $0.id == collectionID }) else { return }
+        let url = collection.directoryURL
+
+        let result = await Task.detached(priority: .userInitiated) { () -> Result<ProjectSnapshot, LibraryScanError> in
+            do {
+                return .success(try LibraryScanner.scan(projectURL: url))
+            } catch let error as LibraryScanError {
+                return .failure(error)
+            } catch {
+                return .failure(.unreadable(url))
+            }
+        }.value
+
+        guard !Task.isCancelled else { return }
+
+        switch result {
+        case .success(let snapshot):
+            apply(snapshot, to: collectionID)
+        case .failure(let error):
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func apply(_ snapshot: ProjectSnapshot, to id: UUID) {
+        guard let index = collections.firstIndex(where: { $0.id == id }) else { return }
+
+        collections[index].mangas = snapshot.mangas
+        collections[index].isAvailable = true
+        if collections[index].name.isEmpty {
+            collections[index].name = snapshot.name
+        }
+
+        if let last = collections[index].lastMangaID,
+           !snapshot.mangas.contains(where: { $0.id == last }) {
+            collections[index].lastMangaID = snapshot.mangas.first?.id
+        }
+
+        startWatcher(for: id)
+
+        if id == selectedCollectionID, let reading {
+            let stillExists = snapshot.mangas.contains { manga in
+                manga.id == reading.manga.id
+                    && manga.chapters.contains { $0.id == reading.chapter.id }
+            }
+            if !stillExists {
+                closeReader()
+            }
+        }
+
+        if id == selectedCollectionID {
+            clampPage()
+        }
+
+        scheduleSave()
+    }
+
+    private func startWatcher(for id: UUID) {
+        watchers[id]?.stop()
+        watchers[id] = nil
+
+        guard let collection = collections.first(where: { $0.id == id }), collection.isAvailable else {
+            return
+        }
+
+        watchers[id] = ProjectWatcher(
+            root: collection.directoryURL,
+            mangaDirectories: collection.mangas.map(\.directoryURL)
+        ) { [weak self] in
+            self?.scheduleRescan(collectionID: id)
+        }
+    }
+
+    private func scheduleRescan(collectionID: UUID) {
+        rescanTasks[collectionID]?.cancel()
+        rescanTasks[collectionID] = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(750))
+            guard !Task.isCancelled else { return }
+            self?.scan(collectionID: collectionID)
+        }
+    }
+
+    private func access(_ url: URL, id: UUID) {
         if url.startAccessingSecurityScopedResource() {
-            securityScopedURL = url
+            scopedURLs[id] = url
         }
     }
 
@@ -187,94 +498,17 @@ final class AppModel {
         url.standardizedFileURL.resolvingSymlinksInPath().path
     }
 
-    // MARK: - Scanning
-
-    private func scan(showSpinner: Bool) {
-        guard let projectURL else { return }
-        scanTask?.cancel()
-        if showSpinner { isLoadingProject = true }
-        isScanning = true
-        let url = projectURL
-
-        scanTask = Task { [weak self] in
-            let result = await Task.detached(priority: .userInitiated) { () -> Result<ProjectSnapshot, LibraryScanError> in
-                do {
-                    return .success(try LibraryScanner.scan(projectURL: url))
-                } catch let error as LibraryScanError {
-                    return .failure(error)
-                } catch {
-                    return .failure(.unreadable(url))
-                }
-            }.value
-
-            guard !Task.isCancelled, let self else { return }
-            self.isScanning = false
-            self.isLoadingProject = false
-            switch result {
-            case .success(let snapshot):
-                self.apply(snapshot)
-            case .failure(let error):
-                self.errorMessage = error.localizedDescription
-            }
-        }
-    }
-
-    private func apply(_ snapshot: ProjectSnapshot) {
-        mangas = snapshot.mangas
-        projectName = snapshot.name
-
-        if let reading {
-            let stillExists = mangas.contains { manga in
-                manga.id == reading.manga.id
-                    && manga.chapters.contains { $0.id == reading.chapter.id }
-            }
-            if !stillExists { closeReader() }
-        }
-
-        if let lastMangaID, !mangas.contains(where: { $0.id == lastMangaID }) {
-            self.lastMangaID = mangas.first?.id
-        }
-        if let lastMangaID {
-            expandedMangaIDs.insert(lastMangaID)
-        }
-        if let reading {
-            expandedMangaIDs.insert(reading.manga.id)
-        }
-
-        startWatchers(snapshot)
-        saveNow()
-
-        if pendingAutoReader {
-            pendingAutoReader = false
-            if let target = autoOpenTarget {
-                openReader(manga: target.manga, chapter: target.chapter, startPage: target.pageIndex)
-            }
-        }
-    }
-
-    private func startWatchers(_ snapshot: ProjectSnapshot) {
-        watcher?.stop()
-        watcher = ProjectWatcher(
-            root: snapshot.projectURL,
-            mangaDirectories: snapshot.mangas.map(\.directoryURL)
-        ) { [weak self] in
-            self?.scheduleRescan()
-        }
-    }
-
-    private func scheduleRescan() {
-        rescanTask?.cancel()
-        rescanTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(750))
-            guard !Task.isCancelled, let self else { return }
-            self.scan(showSpinner: false)
-        }
+    private func isDirectory(_ url: URL) -> Bool {
+        var isDirectory: ObjCBool = false
+        return FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
+            && isDirectory.boolValue
     }
 
     // MARK: - Filtering
 
     var filteredMangas: [MangaItem] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+
         return mangas.filter { manga in
             if !query.isEmpty {
                 let matchesManga = manga.title.localizedCaseInsensitiveContains(query)
@@ -283,6 +517,7 @@ final class AppModel {
                 }
                 if !matchesManga, !matchesChapter { return false }
             }
+
             switch filter {
             case .all:
                 return true
@@ -300,6 +535,45 @@ final class AppModel {
         case .reading: mangas.count { status(for: $0) == .reading }
         case .completed: mangas.count { status(for: $0) == .completed }
         }
+    }
+
+    // MARK: - Pagination
+
+    var pageCount: Int {
+        LibraryPagination.pageCount(total: filteredMangas.count, pageSize: pageSize)
+    }
+
+    var currentPage: Int {
+        LibraryPagination.clampedPage(libraryPage, total: filteredMangas.count, pageSize: pageSize)
+    }
+
+    var pageMangas: [MangaItem] {
+        let all = filteredMangas
+        let range = LibraryPagination.range(total: all.count, page: libraryPage, pageSize: pageSize)
+        guard !range.isEmpty else { return [] }
+        return Array(all[range])
+    }
+
+    var pageRangeText: String {
+        LibraryPagination.rangeLabel(total: filteredMangas.count, page: libraryPage, pageSize: pageSize)
+    }
+
+    func nextPage() {
+        guard currentPage + 1 < pageCount else { return }
+        libraryPage = currentPage + 1
+    }
+
+    func previousPage() {
+        guard currentPage > 0 else { return }
+        libraryPage = currentPage - 1
+    }
+
+    func resetPage() {
+        libraryPage = 0
+    }
+
+    func clampPage() {
+        libraryPage = currentPage
     }
 
     // MARK: - Progress
@@ -359,7 +633,6 @@ final class AppModel {
         mp.updatedAt = .now
         progress[manga.id] = mp
         lastMangaID = manga.id
-        expandedMangaIDs.insert(manga.id)
         scheduleSave()
     }
 
@@ -396,10 +669,20 @@ final class AppModel {
     }
 
     private func makeState() -> LibraryState {
-        LibraryState(
-            projectPath: projectURL.map { canonicalPath($0) },
-            lastMangaID: lastMangaID,
-            progress: progress
+        let records = collections.map { collection in
+            StoredCollection(
+                id: collection.id,
+                name: collection.name,
+                path: canonicalPath(collection.directoryURL),
+                bookmark: collection.bookmark ?? SecurityBookmark.make(for: collection.directoryURL),
+                lastMangaID: collection.lastMangaID
+            )
+        }
+
+        return LibraryState(
+            collections: records,
+            selectedCollectionID: selectedCollectionID,
+            progress: progressByCollection
         )
     }
 
@@ -432,6 +715,7 @@ final class AppModel {
         let preferred = lastMangaID.flatMap { id in
             candidates.first { $0.id == id }
         }
+
         guard let manga = preferred ?? mostRecent ?? (requireProgress ? nil : mangas.first) else {
             return nil
         }
@@ -442,7 +726,14 @@ final class AppModel {
         return (manga, chapter, page)
     }
 
-    func openReader(manga: MangaItem, chapter: ChapterItem? = nil, startPage: Int? = nil, restart: Bool = false) {
+    func openReader(
+        manga: MangaItem,
+        chapter: ChapterItem? = nil,
+        startPage: Int? = nil,
+        restart: Bool = false
+    ) {
+        guard selectedCollectionID != nil else { return }
+
         let selectedChapter: ChapterItem?
         if let chapter {
             selectedChapter = chapter
@@ -452,8 +743,10 @@ final class AppModel {
             selectedChapter = resumeChapter(for: manga)
         }
         guard let chapter = selectedChapter else { return }
+
         let page = restart ? 0 : (startPage ?? resumePage(for: manga, chapter: chapter))
         reading?.close()
+
         let session = ReadingSession(
             model: self,
             manga: manga,
@@ -462,15 +755,13 @@ final class AppModel {
         )
         reading = session
         noteOpened(manga: manga, chapter: chapter)
-        expandedMangaIDs.insert(manga.id)
     }
 
     func openChapter(_ chapter: ChapterItem, manga: MangaItem, restart: Bool = false) {
         openReader(manga: manga, chapter: chapter, startPage: restart ? 0 : nil, restart: restart)
     }
 
-    /// "Start over" from a card or sidebar row: clears the manga's progress and
-    /// opens its first chapter from the first page.
+    /// Clears the manga's progress and opens its first chapter from the start.
     func restartManga(_ manga: MangaItem) {
         progress[manga.id] = MangaProgress()
         lastMangaID = manga.id
@@ -490,13 +781,18 @@ final class AppModel {
 
     // MARK: - Chapter ordering
 
-    func nextReadingTarget(afterMangaID mangaID: String, chapterID: String) -> (manga: MangaItem, chapter: ChapterItem)? {
+    func nextReadingTarget(
+        afterMangaID mangaID: String,
+        chapterID: String
+    ) -> (manga: MangaItem, chapter: ChapterItem)? {
         guard let mangaIndex = mangas.firstIndex(where: { $0.id == mangaID }) else { return nil }
         let manga = mangas[mangaIndex]
+
         if let chapterIndex = manga.chapters.firstIndex(where: { $0.id == chapterID }),
            chapterIndex + 1 < manga.chapters.count {
             return (manga, manga.chapters[chapterIndex + 1])
         }
+
         guard mangaIndex + 1 < mangas.count else { return nil }
         let nextManga = mangas[mangaIndex + 1]
         guard let chapter = nextManga.chapters.first else {
@@ -505,13 +801,18 @@ final class AppModel {
         return (nextManga, chapter)
     }
 
-    func previousReadingTarget(afterMangaID mangaID: String, chapterID: String) -> (manga: MangaItem, chapter: ChapterItem)? {
+    func previousReadingTarget(
+        afterMangaID mangaID: String,
+        chapterID: String
+    ) -> (manga: MangaItem, chapter: ChapterItem)? {
         guard let mangaIndex = mangas.firstIndex(where: { $0.id == mangaID }) else { return nil }
         let manga = mangas[mangaIndex]
+
         if let chapterIndex = manga.chapters.firstIndex(where: { $0.id == chapterID }),
            chapterIndex > 0 {
             return (manga, manga.chapters[chapterIndex - 1])
         }
+
         guard mangaIndex > 0 else { return nil }
         let previousManga = mangas[mangaIndex - 1]
         guard let chapter = previousManga.chapters.last else {
@@ -520,7 +821,7 @@ final class AppModel {
         return (previousManga, chapter)
     }
 
-    // MARK: - Sidebar helpers
+    // MARK: - Sidebar / small actions
 
     func toggleSidebar() {
         withAnimation(.smooth(duration: 0.25)) {
@@ -528,17 +829,10 @@ final class AppModel {
         }
     }
 
-    func toggleExpanded(mangaID: String) {
-        if expandedMangaIDs.contains(mangaID) {
-            expandedMangaIDs.remove(mangaID)
-        } else {
-            expandedMangaIDs.insert(mangaID)
-        }
-    }
-
     func clearFilters() {
         searchText = ""
         filter = .all
+        libraryPage = 0
     }
 
     func clearError() {

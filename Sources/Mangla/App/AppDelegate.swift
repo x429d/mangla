@@ -98,6 +98,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         window.title = "Mangla"
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
+        window.titlebarSeparatorStyle = .none
         window.isMovableByWindowBackground = true
         window.backgroundColor = NSColor(red: 0.043, green: 0.045, blue: 0.052, alpha: 1)
         window.minSize = NSSize(width: 980, height: 640)
@@ -141,11 +142,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     private func removeNativeSidebarToggle() {
         guard let toolbar = window?.toolbar else { return }
+
         for item in toolbar.items.reversed()
         where item.itemIdentifier.rawValue.contains("toggleSidebar") {
             if let index = toolbar.items.firstIndex(of: item) {
                 toolbar.removeItem(at: index)
             }
+        }
+
+        // The app ships a themed sidebar toggle and a custom reader HUD; the
+        // empty native toolbar otherwise becomes a black strip in fullscreen.
+        if toolbar.isVisible {
+            toolbar.isVisible = false
         }
     }
 
@@ -248,8 +256,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         mainMenu.addItem(fileMenuItem)
         let fileMenu = NSMenu(title: "Файл")
         fileMenuItem.submenu = fileMenu
-        fileMenu.addItem(menuItem("Открыть проект…", #selector(openProject(_:)), "o"))
-        fileMenu.addItem(menuItem("Обновить проект", #selector(refreshProject(_:)), "r"))
+        fileMenu.addItem(menuItem("Добавить коллекцию…", #selector(openProject(_:)), "o"))
+        fileMenu.addItem(menuItem("Обновить коллекцию", #selector(refreshProject(_:)), "r"))
         fileMenu.addItem(.separator())
         fileMenu.addItem(menuItem("Закрыть читалку", #selector(closeReader(_:)), "w", [.command, .shift]))
         fileMenu.addItem(withTitle: "Закрыть окно", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
@@ -303,7 +311,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     // MARK: - Menu actions
 
-    @objc private func openProject(_ sender: Any?) { model.chooseProject() }
+    @objc private func openProject(_ sender: Any?) { model.addCollections() }
     @objc private func refreshProject(_ sender: Any?) { model.refresh() }
     @objc private func toggleSidebar(_ sender: Any?) {
         guard model.reading == nil else { return }
@@ -320,14 +328,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
-        case #selector(openProject(_:)), #selector(refreshProject(_:)):
+        case #selector(openProject(_:)):
             return true
+        case #selector(refreshProject(_:)):
+            return model.selectedCollectionID != nil
         case #selector(closeReader(_:)):
             return model.reading != nil
         case #selector(zoomIn(_:)), #selector(zoomOut(_:)), #selector(resetZoom(_:)):
             return model.reading != nil
         case #selector(toggleSidebar(_:)):
-            return model.reading == nil && model.projectURL != nil
+            return model.reading == nil && !model.collections.isEmpty
         case #selector(toggleFullScreen(_:)):
             return true
         default:

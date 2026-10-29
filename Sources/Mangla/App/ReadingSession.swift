@@ -28,7 +28,8 @@ final class ReaderBridge {
         }
     }
 
-    func resetZoom() { canvas?.resetZoom(animated: true) }
+    func resetZoom() { resetZoom(animated: true) }
+    func resetZoom(animated: Bool) { canvas?.resetZoom(animated: animated) }
     func zoomIn() { canvas?.zoomIn() }
     func zoomOut() { canvas?.zoomOut() }
     func focus() { canvas?.focusCanvas() }
@@ -39,51 +40,125 @@ final class ReaderBridge {
 @MainActor
 @Observable
 final class ReaderChromeState {
-    var isVisible = true
-    var isHovering = false
+    /// The two HUD panels are independent: the top one is tied to the top
+    /// screen edge, the bottom one to the bottom edge.
+    var isTopVisible = false
+    var isBottomVisible = false
 
-    @ObservationIgnored private var hideTask: Task<Void, Never>?
+    @ObservationIgnored private var isTopHovered = false
+    @ObservationIgnored private var isBottomHovered = false
+    @ObservationIgnored private var pointerNearTop = false
+    @ObservationIgnored private var pointerNearBottom = false
+    @ObservationIgnored private var topHideTask: Task<Void, Never>?
+    @ObservationIgnored private var bottomHideTask: Task<Void, Never>?
 
-    func poke() {
-        isVisible = true
-        scheduleHide()
+    private let topZone: CGFloat = 96
+    private let bottomZone: CGFloat = 118
+    private let hideDelay: Duration
+
+    init(hideDelay: Duration = .milliseconds(420)) {
+        self.hideDelay = hideDelay
     }
 
-    /// Scrolling should not summon the HUD, but it should keep it alive.
-    func noteScrollActivity() {
-        if isVisible {
-            scheduleHide()
+    /// Called from the canvas on every mouse move. `yFromTop` is measured in
+    /// window points from the very top edge.
+    func updatePointer(yFromTop: CGFloat, height: CGFloat) {
+        guard height > 1 else { return }
+
+        let nearTop = yFromTop <= topZone
+        let nearBottom = yFromTop >= height - bottomZone
+
+        if nearTop != pointerNearTop {
+            pointerNearTop = nearTop
+            if nearTop {
+                revealTop()
+            } else {
+                scheduleTopHide()
+            }
+        }
+
+        if nearBottom != pointerNearBottom {
+            pointerNearBottom = nearBottom
+            if nearBottom {
+                revealBottom()
+            } else {
+                scheduleBottomHide()
+            }
         }
     }
 
-    func hold() {
-        hideTask?.cancel()
-        hideTask = nil
-        isVisible = true
+    func pointerExited() {
+        pointerNearTop = false
+        pointerNearBottom = false
+        scheduleTopHide()
+        scheduleBottomHide()
     }
 
-    func setHovering(_ hovering: Bool) {
-        isHovering = hovering
+    func setTopHovered(_ hovering: Bool) {
+        guard hovering != isTopHovered else { return }
+        isTopHovered = hovering
         if hovering {
-            hold()
-        } else {
-            scheduleHide()
+            revealTop()
+        } else if !pointerNearTop {
+            scheduleTopHide()
         }
     }
 
-    func scheduleHide(after seconds: Double = 2.0) {
-        hideTask?.cancel()
-        hideTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(seconds))
-            guard !Task.isCancelled, let self, !self.isHovering else { return }
-            self.isVisible = false
-            NSCursor.setHiddenUntilMouseMoves(true)
+    func setBottomHovered(_ hovering: Bool) {
+        guard hovering != isBottomHovered else { return }
+        isBottomHovered = hovering
+        if hovering {
+            revealBottom()
+        } else if !pointerNearBottom {
+            scheduleBottomHide()
         }
     }
 
-    func cancel() {
-        hideTask?.cancel()
-        hideTask = nil
+    func hideAll() {
+        topHideTask?.cancel()
+        bottomHideTask?.cancel()
+        topHideTask = nil
+        bottomHideTask = nil
+        pointerNearTop = false
+        pointerNearBottom = false
+        isTopHovered = false
+        isBottomHovered = false
+        isTopVisible = false
+        isBottomVisible = false
+    }
+
+    private func revealTop() {
+        topHideTask?.cancel()
+        topHideTask = nil
+        isTopVisible = true
+    }
+
+    private func revealBottom() {
+        bottomHideTask?.cancel()
+        bottomHideTask = nil
+        isBottomVisible = true
+    }
+
+    private func scheduleTopHide() {
+        topHideTask?.cancel()
+        let delay = hideDelay
+        topHideTask = Task { [weak self] in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled, let self else { return }
+            guard !self.pointerNearTop, !self.isTopHovered else { return }
+            self.isTopVisible = false
+        }
+    }
+
+    private func scheduleBottomHide() {
+        bottomHideTask?.cancel()
+        let delay = hideDelay
+        bottomHideTask = Task { [weak self] in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled, let self else { return }
+            guard !self.pointerNearBottom, !self.isBottomHovered else { return }
+            self.isBottomVisible = false
+        }
     }
 }
 
@@ -156,7 +231,6 @@ final class ReadingSession {
             ReaderPreferences.layoutMode = newValue
             rebuildSpreads(anchorPage: currentPageIndex)
             zoom = 1
-            chrome.poke()
         }
     }
 
@@ -167,7 +241,6 @@ final class ReadingSession {
             storedFitMode = newValue
             ReaderPreferences.fitMode = newValue
             zoom = 1
-            chrome.poke()
         }
     }
 
@@ -176,7 +249,6 @@ final class ReadingSession {
         set {
             storedDirection = newValue
             ReaderPreferences.direction = newValue
-            chrome.poke()
         }
     }
 
@@ -257,7 +329,6 @@ final class ReadingSession {
             self.isLoadingChapter = false
             self.zoom = 1
             self.recordProgress(force: true)
-            self.chrome.poke()
         }
     }
 
@@ -284,11 +355,18 @@ final class ReadingSession {
 
     // MARK: Navigation
 
+    /// Every explicit page switch starts from the standard zoom and from the
+    /// top of the new page. Continuous webtoon scrolling does not call this.
+    private func prepareForPageTurn() {
+        zoom = 1
+        bridge.resetZoom(animated: false)
+    }
+
     func next() {
-        chrome.poke()
         switch storedLayoutMode {
         case .single, .spread:
             if spreadIndex + 1 < spreads.count {
+                prepareForPageTurn()
                 spreadIndex += 1
                 syncPageIndexToSpread()
                 recordProgress()
@@ -305,10 +383,10 @@ final class ReadingSession {
     }
 
     func previous() {
-        chrome.poke()
         switch storedLayoutMode {
         case .single, .spread:
             if spreadIndex > 0 {
+                prepareForPageTurn()
                 spreadIndex -= 1
                 syncPageIndexToSpread()
                 recordProgress()
@@ -327,9 +405,9 @@ final class ReadingSession {
     func goToPage(_ page: Int) {
         guard !pageSlots.isEmpty else { return }
         let target = min(max(page, 0), pageSlots.count - 1)
-        chrome.poke()
         switch storedLayoutMode {
         case .single, .spread:
+            prepareForPageTurn()
             if let index = spreads.firstIndex(where: { $0.pageIndices.contains(target) }) {
                 spreadIndex = index
                 syncPageIndexToSpread()
@@ -341,6 +419,7 @@ final class ReadingSession {
     }
 
     private func seek(to page: Int) {
+        prepareForPageTurn()
         currentPageIndex = min(max(page, 0), max(0, pageSlots.count - 1))
         seekRequest = WebtoonSeekRequest(id: seekRequest.id + 1, page: currentPageIndex)
         recordProgress()
@@ -357,7 +436,7 @@ final class ReadingSession {
 
     func nextChapter() {
         guard let target = model?.nextReadingTarget(afterMangaID: manga.id, chapterID: chapter.id) else {
-            showToast("Это последняя глава в проекте")
+            showToast("Это последняя глава в коллекции")
             return
         }
         switchTo(manga: target.manga, chapter: target.chapter, startPage: 0)
@@ -365,7 +444,7 @@ final class ReadingSession {
 
     func previousChapter() {
         guard let target = model?.previousReadingTarget(afterMangaID: manga.id, chapterID: chapter.id) else {
-            showToast("Это первая глава в проекте")
+            showToast("Это первая глава в коллекции")
             return
         }
         switchTo(
@@ -405,7 +484,6 @@ final class ReadingSession {
     }
 
     func resetZoom() {
-        chrome.poke()
         bridge.resetZoom()
     }
 
@@ -428,7 +506,7 @@ final class ReadingSession {
         if !pageSlots.isEmpty {
             recordProgress(force: true)
         }
-        chrome.cancel()
+        chrome.hideAll()
         toastTask?.cancel()
     }
 

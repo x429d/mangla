@@ -72,7 +72,7 @@ enum LibraryScanner {
 
         mangas.sort { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
 
-        let name = root.lastPathComponent.isEmpty ? "Проект" : root.lastPathComponent
+        let name = root.lastPathComponent.isEmpty ? "Коллекция" : root.lastPathComponent
         return ProjectSnapshot(projectURL: root, name: name, mangas: mangas)
     }
 

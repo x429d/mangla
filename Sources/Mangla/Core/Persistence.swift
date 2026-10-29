@@ -1,26 +1,66 @@
 import Foundation
 
-// MARK: - On-disk library state
+// MARK: - Persisted collection
+
+struct StoredCollection: Codable, Sendable, Identifiable {
+    var id: UUID
+    var name: String
+    var path: String
+    var bookmark: Data?
+    var lastMangaID: String?
+}
+
+// MARK: - On-disk library state (v2)
 
 struct LibraryState: Codable, Sendable {
     var version: Int
-    var projectPath: String?
-    var lastMangaID: String?
-    var progress: [String: MangaProgress]
+    var collections: [StoredCollection]
+    var selectedCollectionID: UUID?
+    /// Keyed by collection UUID string, then by manga folder path.
+    var progress: [String: [String: MangaProgress]]
     var updatedAt: Date
 
     init(
-        version: Int = 1,
-        projectPath: String? = nil,
-        lastMangaID: String? = nil,
-        progress: [String: MangaProgress] = [:],
+        version: Int = 2,
+        collections: [StoredCollection] = [],
+        selectedCollectionID: UUID? = nil,
+        progress: [String: [String: MangaProgress]] = [:],
         updatedAt: Date = .now
     ) {
         self.version = version
-        self.projectPath = projectPath
-        self.lastMangaID = lastMangaID
+        self.collections = collections
+        self.selectedCollectionID = selectedCollectionID
         self.progress = progress
         self.updatedAt = updatedAt
+    }
+}
+
+/// State written by Mangla 1.x (one project, flat progress map).
+struct LegacyLibraryState: Codable, Sendable {
+    var version: Int?
+    var projectPath: String?
+    var lastMangaID: String?
+    var progress: [String: MangaProgress]?
+    var updatedAt: Date?
+}
+
+extension LegacyLibraryState {
+    func migrated() -> LibraryState? {
+        guard let projectPath, !projectPath.isEmpty else { return nil }
+        let url = URL(fileURLWithPath: projectPath)
+        let id = UUID()
+        let record = StoredCollection(
+            id: id,
+            name: url.lastPathComponent,
+            path: projectPath,
+            bookmark: nil,
+            lastMangaID: lastMangaID
+        )
+        return LibraryState(
+            collections: [record],
+            selectedCollectionID: id,
+            progress: [id.uuidString: progress ?? [:]]
+        )
     }
 }
 
@@ -37,9 +77,20 @@ enum StatePersistence {
 
     static func load() -> LibraryState? {
         guard let data = try? Data(contentsOf: stateURL) else { return nil }
+        return decode(data)
+    }
+
+    static func decode(_ data: Data) -> LibraryState? {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        return try? decoder.decode(LibraryState.self, from: data)
+
+        if let state = try? decoder.decode(LibraryState.self, from: data), state.version >= 2 {
+            return state
+        }
+        if let legacy = try? decoder.decode(LegacyLibraryState.self, from: data) {
+            return legacy.migrated()
+        }
+        return nil
     }
 
     /// All writes go through one serial queue, so an older snapshot can never
@@ -78,42 +129,11 @@ enum AppDefaults {
     }
 }
 
-// MARK: - Security-scoped workspace bookmark
+// MARK: - Security-scoped bookmarks
 
-enum WorkspaceBookmark {
-    private static let bookmarkKey = "mangla.workspace.bookmark"
-    private static let pathKey = "mangla.workspace.path"
-
-    static func save(_ url: URL) {
-        let defaults = AppDefaults.shared
-        defaults.set(url.path, forKey: pathKey)
-        if let data = makeBookmark(for: url) {
-            defaults.set(data, forKey: bookmarkKey)
-        } else {
-            defaults.removeObject(forKey: bookmarkKey)
-        }
-    }
-
-    static func resolve() -> URL? {
-        let defaults = AppDefaults.shared
-        if let data = defaults.data(forKey: bookmarkKey), let url = resolveBookmark(data) {
-            return url
-        }
-        if let path = defaults.string(forKey: pathKey) {
-            let url = URL(fileURLWithPath: path)
-            if FileManager.default.fileExists(atPath: url.path) { return url }
-        }
-        return nil
-    }
-
-    static func clear() {
-        let defaults = AppDefaults.shared
-        defaults.removeObject(forKey: bookmarkKey)
-        defaults.removeObject(forKey: pathKey)
-    }
-
-    private static func makeBookmark(for url: URL) -> Data? {
-        // Sandboxed apps need the security scope; for a non-sandboxed SPM binary
+enum SecurityBookmark {
+    static func make(for url: URL) -> Data? {
+        // Sandboxed apps need the security scope; for a non-sandboxed build
         // creation may fail, so fall back to a regular bookmark.
         if let data = try? url.bookmarkData(
             options: [.withSecurityScope],
@@ -129,7 +149,7 @@ enum WorkspaceBookmark {
         )
     }
 
-    private static func resolveBookmark(_ data: Data) -> URL? {
+    static func resolve(_ data: Data) -> URL? {
         var isStale = false
         if let url = try? URL(
             resolvingBookmarkData: data,
@@ -147,6 +167,24 @@ enum WorkspaceBookmark {
             bookmarkDataIsStale: &isStale
         ), FileManager.default.fileExists(atPath: url.path) {
             return url
+        }
+        return nil
+    }
+}
+
+/// Reads the single-project bookmark written by Mangla 1.x.
+enum LegacyWorkspaceBookmark {
+    private static let bookmarkKey = "mangla.workspace.bookmark"
+    private static let pathKey = "mangla.workspace.path"
+
+    static func resolveSaved() -> URL? {
+        let defaults = AppDefaults.shared
+        if let data = defaults.data(forKey: bookmarkKey), let url = SecurityBookmark.resolve(data) {
+            return url
+        }
+        if let path = defaults.string(forKey: pathKey) {
+            let url = URL(fileURLWithPath: path)
+            if FileManager.default.fileExists(atPath: url.path) { return url }
         }
         return nil
     }

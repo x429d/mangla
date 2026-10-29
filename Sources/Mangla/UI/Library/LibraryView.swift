@@ -5,7 +5,7 @@ struct LibraryView: View {
 
     var body: some View {
         Group {
-            if model.projectURL == nil {
+            if model.collections.isEmpty {
                 WelcomeView(model: model)
                     .transition(.opacity)
             } else {
@@ -17,11 +17,12 @@ struct LibraryView: View {
                 }
                 .navigationSplitViewStyle(.balanced)
                 .toolbar(removing: .sidebarToggle)
+                .toolbar(.hidden, for: .windowToolbar)
                 .background(Theme.background)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .animation(.smooth(duration: 0.25), value: model.projectURL)
+        .animation(.smooth(duration: 0.25), value: model.collections.isEmpty)
     }
 }
 
@@ -67,13 +68,20 @@ struct WelcomeView: View {
                     .foregroundStyle(Theme.textSecondary)
                     .padding(.top, 8)
 
+                Text("Добавьте одну или несколько папок-коллекций — приложение будет держать их открытыми одновременно.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.textTertiary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 520)
+                    .padding(.top, 10)
+
                 HStack(spacing: 14) {
                     Button {
-                        model.chooseProject()
+                        model.addCollections()
                     } label: {
                         HStack(spacing: 8) {
                             Image(systemName: "folder.badge.plus")
-                            Text("Выбрать папку проекта")
+                            Text("Добавить коллекцию")
                         }
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.white)
@@ -155,7 +163,7 @@ struct StructureExplainer: View {
     var body: some View {
         HStack(spacing: 0) {
             column(
-                title: "Проект",
+                title: "Коллекция",
                 subtitle: "любая папка",
                 lines: ["/Manga Library"]
             )
@@ -213,11 +221,11 @@ struct StructureExplainer: View {
     }
 }
 
-// MARK: - Empty project
+// MARK: - Empty / unavailable collection
 
-struct EmptyProjectView: View {
+struct EmptyCollectionView: View {
     let onRefresh: () -> Void
-    let onChoose: () -> Void
+    let onAddCollection: () -> Void
     let onReveal: () -> Void
 
     var body: some View {
@@ -249,11 +257,11 @@ struct EmptyProjectView: View {
             }
             .frame(height: 138)
 
-            Text("В проекте нет манги")
+            Text("В коллекции нет манги")
                 .font(.system(size: 22, weight: .semibold, design: .serif))
                 .foregroundStyle(Theme.textPrimary)
 
-            Text("Добавьте папки с мангой в выбранный проект — они появятся здесь автоматически.")
+            Text("Добавьте папки с мангой в эту коллекцию — они появятся здесь автоматически.")
                 .font(.system(size: 13))
                 .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)
@@ -262,9 +270,54 @@ struct EmptyProjectView: View {
             HStack(spacing: 10) {
                 Button("Обновить") { onRefresh() }
                     .buttonStyle(SecondaryButtonStyle())
-                Button("Выбрать другую папку") { onChoose() }
+                Button("Добавить коллекцию") { onAddCollection() }
                     .buttonStyle(SecondaryButtonStyle())
                 Button("Показать в Finder") { onReveal() }
+                    .buttonStyle(SecondaryButtonStyle())
+            }
+            .padding(.top, 4)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+struct UnavailableCollectionView: View {
+    let name: String
+    let path: String
+    let isChecking: Bool
+    let onRetry: () -> Void
+    let onRemove: () -> Void
+    let onReveal: () -> Void
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "folder.badge.questionmark")
+                .font(.system(size: 48, weight: .light))
+                .foregroundStyle(Theme.textTertiary)
+
+            Text("Папка коллекции недоступна")
+                .font(.system(size: 22, weight: .semibold, design: .serif))
+                .foregroundStyle(Theme.textPrimary)
+
+            Text(name)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Theme.textSecondary)
+
+            Text(path)
+                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                .foregroundStyle(Theme.textTertiary)
+                .lineLimit(2)
+                .truncationMode(.middle)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 520)
+
+            HStack(spacing: 10) {
+                Button(isChecking ? "Проверяю…" : "Проверить снова") { onRetry() }
+                    .buttonStyle(SecondaryButtonStyle())
+                    .disabled(isChecking)
+                Button("Показать в Finder") { onReveal() }
+                    .buttonStyle(SecondaryButtonStyle())
+                Button("Убрать из приложения", role: .destructive) { onRemove() }
                     .buttonStyle(SecondaryButtonStyle())
             }
             .padding(.top, 4)

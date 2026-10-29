@@ -1,4 +1,5 @@
 import AppKit
+import QuartzCore
 import SwiftUI
 
 /// Single page / double page reader, backed by a native `NSScrollView` with
@@ -43,6 +44,7 @@ struct PageCanvasRepresentable: NSViewRepresentable {
 
         private var currentURLs: [URL] = []
         private var currentFit: FitMode?
+        private var lastRenderedPageIndex: Int?
         private var lastViewport: CGSize = .zero
         private var generation = 0
         private var installed = false
@@ -58,11 +60,12 @@ struct PageCanvasRepresentable: NSViewRepresentable {
 
             container.autoresizingMask = []
             container.onClick = { [weak self] event in self?.handleClick(event) }
-            container.onActivity = { [weak self] in self?.session.chrome.poke() }
+            container.onPointerMove = { [weak self] event in self?.pointerMoved(event) }
 
             surface.autoresizingMask = []
+            surface.wantsLayer = true
             surface.onClick = { [weak self] event in self?.handleClick(event) }
-            surface.onActivity = { [weak self] in self?.session.chrome.poke() }
+            surface.onPointerMove = { [weak self] event in self?.pointerMoved(event) }
             container.addSubview(surface)
 
             scrollView.documentView = container
@@ -72,11 +75,11 @@ struct PageCanvasRepresentable: NSViewRepresentable {
             scrollView.onHorizontalSwipe = { [weak self] delta in
                 self?.handleSwipe(delta)
             }
-            scrollView.onMouseActivity = { [weak self] in
-                self?.session.chrome.poke()
+            scrollView.onPointerMove = { [weak self] event in
+                self?.pointerMoved(event)
             }
-            scrollView.onScrollActivity = { [weak self] in
-                self?.session.chrome.noteScrollActivity()
+            scrollView.onPointerExit = { [weak self] in
+                self?.session.chrome.pointerExited()
             }
             scrollView.onSmartZoom = { [weak self] event in
                 self?.handleSmartZoom(event)
@@ -95,7 +98,21 @@ struct PageCanvasRepresentable: NSViewRepresentable {
             let fitChanged = fitMode != currentFit
             let viewportChanged = viewport != lastViewport
 
+            let newPageIndex = session.currentPageIndex
+            let movingForward: Bool?
+            if slotsChanged, !currentURLs.isEmpty,
+               let last = lastRenderedPageIndex, newPageIndex != last {
+                movingForward = newPageIndex > last
+            } else {
+                movingForward = nil
+            }
+
             if slotsChanged {
+                if let movingForward {
+                    scrollView.resetZoomWithoutNotification()
+                    scrollToTop()
+                    animatePageTurn(movingForward: movingForward)
+                }
                 rebuildPageViews(for: slots)
             }
 
@@ -123,6 +140,7 @@ struct PageCanvasRepresentable: NSViewRepresentable {
             currentURLs = urls
             currentFit = fitMode
             lastViewport = viewport
+            lastRenderedPageIndex = newPageIndex
 
             prefetch()
         }
@@ -140,7 +158,7 @@ struct PageCanvasRepresentable: NSViewRepresentable {
             pageViews = slots.map { _ in
                 let view = PageContentView()
                 view.onClick = { [weak self] event in self?.handleClick(event) }
-                view.onActivity = { [weak self] in self?.session.chrome.poke() }
+                view.onPointerMove = { [weak self] event in self?.pointerMoved(event) }
                 return view
             }
             for view in pageViews {
@@ -199,10 +217,74 @@ struct PageCanvasRepresentable: NSViewRepresentable {
 
         private func handleClick(_ event: NSEvent) {
             scrollView?.window?.makeFirstResponder(scrollView)
-            if event.clickCount >= 2 {
-                handleSmartZoom(event)
+            guard let scrollView else { return }
+
+            let point = scrollView.convert(event.locationInWindow, from: nil)
+            let action = ReaderInteraction.clickAction(
+                x: point.x,
+                width: scrollView.bounds.width,
+                direction: session.direction
+            )
+
+            switch action {
+            case .previous:
+                guard event.clickCount == 1 else { return }
+                session.previous()
+            case .next:
+                guard event.clickCount == 1 else { return }
+                session.next()
+            case .none:
+                if event.clickCount >= 2 {
+                    handleSmartZoom(event)
+                }
+            }
+        }
+
+        private func animatePageTurn(movingForward: Bool) {
+            guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { return }
+            guard let layer = surface.layer else { return }
+
+            let fromRight = ReaderInteraction.comesFromRight(
+                movingForward: movingForward,
+                direction: session.direction
+            )
+            let transition = CATransition()
+            transition.type = .push
+            transition.subtype = fromRight ? .fromRight : .fromLeft
+            transition.duration = 0.16
+            transition.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            layer.add(transition, forKey: "mangla.pageTurn")
+        }
+
+        private func pointerMoved(_ event: NSEvent) {
+            guard let scrollView else { return }
+            let width = scrollView.bounds.width
+            let height = scrollView.bounds.height
+            guard width > 1, height > 1 else { return }
+
+            let point = scrollView.convert(event.locationInWindow, from: nil)
+            let yFromTop = height - point.y
+            session.chrome.updatePointer(yFromTop: yFromTop, height: height)
+
+            // Keep the normal arrow over the floating HUD panels; show the
+            // navigation chevron only over the actual page.
+            let overTopBar = session.chrome.isTopVisible
+                && yFromTop >= 34
+                && yFromTop <= 88
+                && point.x >= 16
+                && point.x <= width - 16
+            let bottomWidth = min(1000, max(0, width - 32))
+            let bottomMinX = (width - bottomWidth) / 2
+            let overBottomBar = session.chrome.isBottomVisible
+                && yFromTop >= height - 70
+                && point.x >= bottomMinX
+                && point.x <= bottomMinX + bottomWidth
+
+            if overTopBar || overBottomBar {
+                ReaderCursors.apply(.middle)
             } else {
-                session.chrome.poke()
+                let zone = ReaderInteraction.sideZone(x: point.x, width: width)
+                ReaderCursors.apply(zone)
             }
         }
 
@@ -211,7 +293,6 @@ struct PageCanvasRepresentable: NSViewRepresentable {
             let point = scrollView.contentView.convert(event.locationInWindow, from: nil)
             let target: CGFloat = scrollView.magnification > 1.02 ? 1.0 : 2.5
             scrollView.zoom(to: target, at: point, animated: true)
-            session.chrome.poke()
         }
 
         private func handleSwipe(_ delta: CGFloat) {
@@ -227,18 +308,15 @@ struct PageCanvasRepresentable: NSViewRepresentable {
         // MARK: - ReaderCanvasControlling
 
         func resetZoom(animated: Bool) {
-            session.chrome.poke()
             session.setZoom(1)
             scrollView?.resetZoom(animated: animated)
         }
 
         func zoomIn() {
-            session.chrome.poke()
             scrollView?.zoomStep(by: 1.4)
         }
 
         func zoomOut() {
-            session.chrome.poke()
             scrollView?.zoomStep(by: 1 / 1.4)
         }
 

@@ -59,6 +59,21 @@ struct ProjectSnapshot: Sendable {
     let mangas: [MangaItem]
 }
 
+/// A root folder opened in the app. Several collections can be active at once.
+struct MangaCollection: Identifiable, Sendable {
+    let id: UUID
+    var name: String
+    var directoryURL: URL
+    var mangas: [MangaItem]
+    var isAvailable: Bool
+    var lastMangaID: String?
+    var bookmark: Data?
+
+    var mangaCount: Int { mangas.count }
+    var chapterCount: Int { mangas.reduce(0) { $0 + $1.chapterCount } }
+    var pageCount: Int { mangas.reduce(0) { $0 + $1.pageCount } }
+}
+
 // MARK: - Reading state
 
 enum ReadingStatus: String, Sendable {

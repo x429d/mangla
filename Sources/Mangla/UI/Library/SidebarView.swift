@@ -71,43 +71,12 @@ struct SidebarView: View {
                 .frame(height: 1)
                 .padding(.top, 13)
 
-            if model.filteredMangas.isEmpty {
-                emptyList
-            } else {
-                ScrollView {
-                    LazyVStack(spacing: 2) {
-                        ForEach(model.filteredMangas) { manga in
-                            SidebarMangaRow(
-                                manga: manga,
-                                status: model.status(for: manga),
-                                fraction: model.progressFraction(for: manga),
-                                isExpanded: model.expandedMangaIDs.contains(manga.id),
-                                isActive: model.lastMangaID == manga.id,
-                                activeChapterID: model.reading?.chapter.id,
-                                isReadingThisManga: model.reading?.manga.id == manga.id,
-                                chapterCompleted: { chapter in
-                                    model.progress[manga.id]?.chapters[chapter.id]?.isCompleted == true
-                                },
-                                onOpen: {
-                                    model.openReader(manga: manga)
-                                },
-                                onToggle: {
-                                    withAnimation(Theme.snappy) {
-                                        model.toggleExpanded(mangaID: manga.id)
-                                    }
-                                },
-                                onOpenChapter: { chapter in
-                                    model.openChapter(chapter, manga: manga)
-                                },
-                                onRestart: { model.restartManga(manga) }
-                            )
-                        }
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 9)
-                }
-                .scrollIndicators(.never)
-            }
+            collectionsHeader
+                .padding(.horizontal, 16)
+                .padding(.top, 14)
+                .padding(.bottom, 7)
+
+            collectionList
 
             footer
         }
@@ -121,63 +90,12 @@ struct SidebarView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 9) {
-                LogoMark(size: 25)
-                Wordmark()
-                Spacer()
-                SidebarToggleButton(isCollapsed: false) {
-                    model.toggleSidebar()
-                }
-            }
-
-            HStack(spacing: 7) {
-                Menu {
-                    Button("Открыть проект…") { model.chooseProject() }
-                    Button("Обновить") { model.refresh() }
-                    Divider()
-                    Button("Показать в Finder") { model.revealProject() }
-                    Button("Забыть проект", role: .destructive) { model.forgetProject() }
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "folder.fill")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(Theme.accentSoft)
-                        Text(model.projectName)
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(Theme.textPrimary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 8, weight: .bold))
-                            .foregroundStyle(Theme.textTertiary)
-                    }
-                }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .fixedSize()
-
-                Spacer(minLength: 0)
-
-                Button {
-                    model.refresh()
-                } label: {
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Theme.textSecondary)
-                        .frame(width: 26, height: 26)
-                        .background(Circle().fill(Color.white.opacity(0.05)))
-                        .overlay(Circle().strokeBorder(Theme.stroke, lineWidth: 1))
-                        .rotationEffect(.degrees(model.isScanning ? 360 : 0))
-                        .animation(
-                            model.isScanning
-                                ? .linear(duration: 0.9).repeatForever(autoreverses: false)
-                                : .default,
-                            value: model.isScanning
-                        )
-                }
-                .buttonStyle(.plain)
-                .help("Обновить проект")
+        HStack(spacing: 9) {
+            LogoMark(size: 25)
+            Wordmark()
+            Spacer()
+            SidebarToggleButton(isCollapsed: false) {
+                model.toggleSidebar()
             }
         }
     }
@@ -187,7 +105,7 @@ struct SidebarView: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(Theme.textTertiary)
-            TextField("Поиск по библиотеке", text: $model.searchText)
+            TextField("Поиск в коллекции", text: $model.searchText)
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))
                 .foregroundStyle(Theme.textPrimary)
@@ -219,42 +137,59 @@ struct SidebarView: View {
         .animation(Theme.snappy, value: searchFocused)
     }
 
-    private var emptyList: some View {
-        VStack(spacing: 10) {
-            Spacer()
-            Image(systemName: model.searchText.isEmpty ? "books.vertical" : "magnifyingglass")
-                .font(.system(size: 22, weight: .light))
+    private var collectionsHeader: some View {
+        HStack(spacing: 8) {
+            Text("КОЛЛЕКЦИИ")
+                .font(.system(size: 9, weight: .bold, design: .rounded))
+                .tracking(1.5)
                 .foregroundStyle(Theme.textTertiary)
-            Text(model.searchText.isEmpty ? "Нет манг в этой подборке" : "Ничего не найдено")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(Theme.textTertiary)
+
             Spacer()
+
+            Button {
+                model.addCollections()
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(Theme.textSecondary)
+                    .frame(width: 22, height: 22)
+                    .background(Circle().fill(Color.white.opacity(0.05)))
+                    .overlay(Circle().strokeBorder(Theme.stroke, lineWidth: 1))
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .help("Добавить коллекцию (⌘O)")
         }
-        .frame(maxWidth: .infinity)
+    }
+
+    private var collectionList: some View {
+        ScrollView {
+            LazyVStack(spacing: 2) {
+                ForEach(model.collections) { collection in
+                    CollectionRow(
+                        collection: collection,
+                        isSelected: model.selectedCollectionID == collection.id,
+                        isScanning: model.scanningCollectionIDs.contains(collection.id),
+                        onSelect: { model.selectCollection(collection.id) },
+                        onRefresh: { model.scan(collectionID: collection.id) },
+                        onReveal: { model.reveal(collection: collection) },
+                        onRemove: { model.removeCollection(collection.id) }
+                    )
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.bottom, 8)
+        }
+        .scrollIndicators(.never)
+        .frame(maxHeight: .infinity)
     }
 
     private var footer: some View {
         VStack(spacing: 0) {
             Rectangle().fill(Theme.stroke).frame(height: 1)
             HStack(spacing: 6) {
-                Text("\(model.mangas.count) \(Format.plural(model.mangas.count, "манга", "манги", "манг"))")
-                Text("·")
-                Text("\(totalChapters) \(Format.plural(totalChapters, "глава", "главы", "глав"))")
+                Text("\(model.collections.count) \(Format.plural(model.collections.count, "коллекция", "коллекции", "коллекций"))")
                 Spacer()
-                Menu {
-                    Button("Открыть проект…") { model.chooseProject() }
-                    Button("Показать в Finder") { model.revealProject() }
-                    Divider()
-                    Button("Забыть проект", role: .destructive) { model.forgetProject() }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Theme.textTertiary)
-                        .frame(width: 22, height: 22)
-                }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .fixedSize()
             }
             .font(.system(size: 10, weight: .medium))
             .foregroundStyle(Theme.textTertiary)
@@ -262,156 +197,93 @@ struct SidebarView: View {
             .padding(.vertical, 10)
         }
     }
-
-    private var totalChapters: Int {
-        model.mangas.reduce(0) { $0 + $1.chapterCount }
-    }
 }
 
-// MARK: - Sidebar row
+// MARK: - Collection row
 
-struct SidebarMangaRow: View {
-    let manga: MangaItem
-    let status: ReadingStatus
-    let fraction: Double
-    let isExpanded: Bool
-    let isActive: Bool
-    let activeChapterID: String?
-    let isReadingThisManga: Bool
-    let chapterCompleted: (ChapterItem) -> Bool
-    let onOpen: () -> Void
-    let onToggle: () -> Void
-    let onOpenChapter: (ChapterItem) -> Void
-    let onRestart: () -> Void
+struct CollectionRow: View {
+    let collection: MangaCollection
+    let isSelected: Bool
+    let isScanning: Bool
+    let onSelect: () -> Void
+    let onRefresh: () -> Void
+    let onReveal: () -> Void
+    let onRemove: () -> Void
 
     @State private var hovering = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 5) {
-                Button(action: onToggle) {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 8, weight: .bold))
+        Button(action: onSelect) {
+            HStack(spacing: 9) {
+                Image(systemName: collection.isAvailable ? "folder.fill" : "folder.badge.questionmark")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(iconColor)
+                    .frame(width: 16)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(collection.name)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(collection.isAvailable ? Theme.textPrimary : Theme.textTertiary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+
+                    Text(subtitle)
+                        .font(.system(size: 9, weight: .medium))
                         .foregroundStyle(Theme.textTertiary)
-                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                        .frame(width: 15, height: 28)
-                        .contentShape(Rectangle())
+                        .lineLimit(1)
                 }
-                .buttonStyle(.plain)
 
-                Button(action: onOpen) {
-                    HStack(spacing: 9) {
-                        cover
+                Spacer(minLength: 4)
 
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(manga.title)
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(isActive ? Theme.textPrimary : Theme.textSecondary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-
-                            HStack(spacing: 4) {
-                                Text(Format.chaptersCompact(manga.chapterCount))
-                                Text("·")
-                                Text(Format.pagesCompact(manga.pageCount))
-                                Spacer(minLength: 2)
-                                if status == .completed {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 8, weight: .bold))
-                                        .foregroundStyle(Theme.mint)
-                                } else if status == .reading {
-                                    Text(Format.percent(fraction))
-                                        .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                                        .foregroundStyle(Theme.accentSoft)
-                                }
-                            }
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundStyle(Theme.textTertiary)
-
-                            if status == .reading {
-                                ProgressTrack(fraction: fraction, height: 2)
-                                    .padding(.top, 1)
-                            }
-                        }
-                    }
-                    .contentShape(Rectangle())
+                if isScanning {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .scaleEffect(0.7)
+                        .frame(width: 14, height: 14)
+                } else if !collection.isAvailable {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.orange.opacity(0.8))
                 }
-                .buttonStyle(.plain)
             }
-            .padding(.leading, 6)
-            .padding(.trailing, 8)
-            .padding(.vertical, 6)
+            .padding(.leading, 9)
+            .padding(.trailing, 9)
+            .padding(.vertical, 7)
             .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
                     .fill(
-                        isReadingThisManga
+                        isSelected
                             ? Theme.accent.opacity(0.13)
                             : (hovering ? Color.white.opacity(0.045) : .clear)
                     )
             )
-            .onHover { hovering = $0 }
-            .contextMenu {
-                Button("Читать") { onOpen() }
-                Button("Начать сначала") { onRestart() }
-            }
-
-            if isExpanded {
-                VStack(spacing: 1) {
-                    ForEach(manga.chapters) { chapter in
-                        Button {
-                            onOpenChapter(chapter)
-                        } label: {
-                            HStack(spacing: 7) {
-                                Image(systemName: chapter.id == activeChapterID
-                                      ? "book.fill"
-                                      : (chapterCompleted(chapter) ? "checkmark.circle.fill" : "circle"))
-                                    .font(.system(size: 8, weight: .semibold))
-                                    .foregroundStyle(
-                                        chapter.id == activeChapterID
-                                            ? Theme.accentSoft
-                                            : (chapterCompleted(chapter) ? Theme.mint.opacity(0.8) : Theme.textTertiary.opacity(0.55))
-                                    )
-                                Text(chapter.title)
-                                    .font(.system(size: 10.5, weight: .medium))
-                                    .foregroundStyle(
-                                        chapter.id == activeChapterID
-                                            ? Theme.textPrimary
-                                            : Theme.textSecondary
-                                    )
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                                Spacer(minLength: 4)
-                                Text("\(chapter.pageCount)")
-                                    .font(.system(size: 9, weight: .medium, design: .monospaced))
-                                    .foregroundStyle(Theme.textTertiary)
-                            }
-                            .padding(.leading, 32)
-                            .padding(.trailing, 10)
-                            .frame(height: 24)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                    }
+            .overlay(alignment: .leading) {
+                if isSelected {
+                    Capsule()
+                        .fill(Theme.accent)
+                        .frame(width: 3)
+                        .padding(.vertical, 7)
                 }
-                .padding(.bottom, 4)
-                .transition(.opacity.combined(with: .move(edge: .top)))
             }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .contextMenu {
+            Button(collection.isAvailable ? "Обновить" : "Проверить снова") { onRefresh() }
+            Button("Показать в Finder") { onReveal() }
+            Divider()
+            Button("Убрать из приложения", role: .destructive) { onRemove() }
         }
     }
 
-    private var cover: some View {
-        Group {
-            if let url = manga.coverURL {
-                ThumbnailImage(url: url, maxPixel: 160)
-            } else {
-                TitlePlaceholder(title: manga.title)
-            }
-        }
-        .frame(width: 27, height: 38)
-        .clipShape(RoundedRectangle(cornerRadius: 4.5, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 4.5, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
-        )
+    private var iconColor: Color {
+        if !collection.isAvailable { return Theme.textTertiary }
+        return isSelected ? Theme.accentSoft : Theme.textSecondary
+    }
+
+    private var subtitle: String {
+        guard collection.isAvailable else { return "Папка недоступна" }
+        return "\(collection.mangaCount) \(Format.plural(collection.mangaCount, "манга", "манги", "манг")) · \(collection.chapterCount) \(Format.plural(collection.chapterCount, "глава", "главы", "глав"))"
     }
 }

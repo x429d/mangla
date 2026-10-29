@@ -7,7 +7,8 @@ import QuartzCore
 @MainActor
 class CanvasSurfaceView: NSView {
     var onClick: ((NSEvent) -> Void)?
-    var onActivity: (() -> Void)?
+    var onPointerMove: ((NSEvent) -> Void)?
+    var onPointerExit: (() -> Void)?
 
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
@@ -32,11 +33,15 @@ class CanvasSurfaceView: NSView {
     }
 
     override func mouseMoved(with event: NSEvent) {
-        onActivity?()
+        onPointerMove?(event)
     }
 
     override func mouseEntered(with event: NSEvent) {
-        onActivity?()
+        onPointerMove?(event)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        onPointerExit?()
     }
 }
 
@@ -218,8 +223,8 @@ final class ZoomAnimator: NSObject {
 final class ReaderScrollView: NSScrollView {
     var onZoomChanged: ((CGFloat) -> Void)?
     var onHorizontalSwipe: ((CGFloat) -> Void)?
-    var onMouseActivity: (() -> Void)?
-    var onScrollActivity: (() -> Void)?
+    var onPointerMove: ((NSEvent) -> Void)?
+    var onPointerExit: (() -> Void)?
     var onSmartZoom: ((NSEvent) -> Void)?
     var pageSwipeEnabled = false
 
@@ -277,16 +282,23 @@ final class ReaderScrollView: NSScrollView {
     }
 
     override func mouseMoved(with event: NSEvent) {
-        onMouseActivity?()
+        onPointerMove?(event)
     }
 
     override func mouseEntered(with event: NSEvent) {
-        onMouseActivity?()
+        onPointerMove?(event)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        // SwiftUI overlays (HUD) can cause tracking exits while the pointer is
+        // still inside the window. Hide the panels only on a real window exit.
+        if let window, window.frame.contains(NSEvent.mouseLocation) { return }
+        onPointerExit?()
     }
 
     // Native pinch-to-zoom, anchored at the cursor.
     override func magnify(with event: NSEvent) {
-        onMouseActivity?()
+        onPointerMove?(event)
         let factor = 1 + event.magnification
         guard factor.isFinite, factor > 0 else { return }
         let target = min(max(magnification * factor, minMagnification), maxMagnification)
@@ -302,7 +314,6 @@ final class ReaderScrollView: NSScrollView {
 
     // Two-finger horizontal swipe flips pages when zoomed out.
     override func scrollWheel(with event: NSEvent) {
-        onScrollActivity?()
         let atBaseZoom = magnification <= 1.001
 
         guard pageSwipeEnabled, atBaseZoom, event.hasPreciseScrollingDeltas else {
