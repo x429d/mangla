@@ -62,23 +62,127 @@ enum Format {
 struct LogoMark: View {
     var size: CGFloat = 34
 
+    private var cornerRadius: CGFloat { size * 0.2245 }
+    private var monogramSize: CGFloat { size * 0.607 }
+    private var obiHeight: CGFloat { size * 0.24 }
+
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [Theme.accentSoft, Theme.accent, Color(red: 0.56, green: 0.11, blue: 0.10)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+
+        shape
+            .fill(
+                LinearGradient(
+                    stops: [
+                        .init(color: Color(red: 1.000, green: 0.992, blue: 0.969), location: 0),
+                        .init(color: Color(red: 0.984, green: 0.961, blue: 0.910), location: 0.30),
+                        .init(color: Color(red: 0.957, green: 0.918, blue: 0.839), location: 0.66),
+                        .init(color: Color(red: 0.902, green: 0.835, blue: 0.722), location: 1),
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
                 )
-            Image(systemName: "book.pages.fill")
-                .font(.system(size: size * 0.46, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.96))
-                .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+            )
+            .overlay {
+                RadialGradient(
+                    colors: [.white.opacity(0.55), .clear],
+                    center: .topLeading,
+                    startRadius: 0,
+                    endRadius: size * 0.9
+                )
+            }
+            .overlay(alignment: .bottom) {
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.973, green: 0.392, blue: 0.251),
+                        Color(red: 0.886, green: 0.271, blue: 0.157),
+                        Color(red: 0.725, green: 0.173, blue: 0.082),
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .frame(height: obiHeight)
+                .overlay(alignment: .top) {
+                    Rectangle()
+                        .fill(.black.opacity(0.16))
+                        .frame(height: max(0.5, size * 0.004))
+                }
+                .shadow(color: .black.opacity(0.18), radius: size * 0.02, y: -size * 0.004)
+            }
+            .overlay {
+                LogoMonogram()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 0.180, green: 0.165, blue: 0.149),
+                                Color(red: 0.102, green: 0.086, blue: 0.075),
+                                Color(red: 0.039, green: 0.031, blue: 0.027),
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: monogramSize, height: monogramSize)
+                    .offset(y: -size * 0.0995)
+                    .shadow(color: .black.opacity(0.18), radius: size * 0.02, y: size * 0.018)
+            }
+            .clipShape(shape)
+            .overlay {
+                shape.strokeBorder(.white.opacity(0.22), lineWidth: max(0.5, size * 0.005))
+            }
+            .frame(width: size, height: size)
+            .shadow(color: .black.opacity(0.35), radius: size * 0.10, y: size * 0.04)
+            .shadow(color: Theme.accent.opacity(0.22), radius: size * 0.28, y: size * 0.10)
+    }
+}
+
+/// The "M" of the app icon, drawn as the same rounded polygon so the in-app
+/// mark and the Dock icon stay identical.
+private struct LogoMonogram: Shape {
+    func path(in rect: CGRect) -> Path {
+        let stem: CGFloat = 0.257
+        let valley: CGFloat = 0.63
+        let junction: CGFloat = 0.42
+        let points: [CGPoint] = [
+            CGPoint(x: 0, y: 1), CGPoint(x: 0, y: 0), CGPoint(x: stem, y: 0),
+            CGPoint(x: 0.5, y: valley), CGPoint(x: 1 - stem, y: 0), CGPoint(x: 1, y: 0),
+            CGPoint(x: 1, y: 1), CGPoint(x: 1 - stem, y: 1),
+            CGPoint(x: 1 - stem, y: junction), CGPoint(x: 0.5, y: 1),
+            CGPoint(x: stem, y: junction), CGPoint(x: stem, y: 1),
+        ]
+        return logoRoundedPolygon(points, radius: 0.06, in: rect)
+    }
+
+    private func logoRoundedPolygon(
+        _ normalized: [CGPoint],
+        radius: CGFloat,
+        in rect: CGRect
+    ) -> Path {
+        let points = normalized.map {
+            CGPoint(x: rect.minX + $0.x * rect.width, y: rect.minY + $0.y * rect.height)
         }
-        .frame(width: size, height: size)
-        .shadow(color: Theme.accent.opacity(0.35), radius: size * 0.35, y: size * 0.12)
+        let r = radius * rect.width
+        var path = Path()
+        let n = points.count
+        for index in 0..<n {
+            let p = points[index]
+            let previous = points[(index - 1 + n) % n]
+            let next = points[(index + 1) % n]
+            let v1 = CGPoint(x: previous.x - p.x, y: previous.y - p.y)
+            let v2 = CGPoint(x: next.x - p.x, y: next.y - p.y)
+            let l1 = sqrt(v1.x * v1.x + v1.y * v1.y)
+            let l2 = sqrt(v2.x * v2.x + v2.y * v2.y)
+            let rr = min(r, l1 / 2, l2 / 2)
+            let start = CGPoint(x: p.x + v1.x / l1 * rr, y: p.y + v1.y / l1 * rr)
+            let end = CGPoint(x: p.x + v2.x / l2 * rr, y: p.y + v2.y / l2 * rr)
+            if index == 0 {
+                path.move(to: start)
+            } else {
+                path.addLine(to: start)
+            }
+            path.addQuadCurve(to: end, control: p)
+        }
+        path.closeSubpath()
+        return path
     }
 }
 

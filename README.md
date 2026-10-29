@@ -311,5 +311,7 @@ swift test
 ## Скрипты
 
 - `Scripts/build-app.sh [release|debug]` — сборка `.app`.
-- `Scripts/make-icon.swift` — генерация исходной иконки 1024×1024 (PNG).
-  `Resources/AppIcon.icns` уже собран и используется бандлом.
+- `Scripts/make-icon.swift` — рисует мастер-иконку 1024×1024: обложку тома манги
+  (кремовая бумага, суми-и «M», вермильоновая оби) в сетке macOS.
+- `Scripts/make-icon.sh` — собирает `Resources/AppIcon.icns` из мастера: все размеры
+  через `sips` и `iconutil`.
