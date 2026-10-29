@@ -1,36 +1,10 @@
 import SwiftUI
 
-// MARK: - HUD chrome
-
-struct HUDChrome: ViewModifier {
-    var corner: CGFloat = 16
-
-    func body(content: Content) -> some View {
-        content
-            .background {
-                ZStack {
-                    RoundedRectangle(cornerRadius: corner, style: .continuous)
-                        .fill(.ultraThinMaterial)
-                    RoundedRectangle(cornerRadius: corner, style: .continuous)
-                        .fill(Color.black.opacity(0.30))
-                }
-                // Empty chrome should not steal page-turn clicks from the
-                // canvas below; only the controls themselves are interactive.
-                .allowsHitTesting(false)
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: corner, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.11), lineWidth: 1)
-                    .allowsHitTesting(false)
-            }
-            .shadow(color: .black.opacity(0.5), radius: 22, y: 10)
-    }
-}
+// MARK: - HUD controls
 
 struct HUDIconButton: View {
     let symbol: String
     var help: String = ""
-    var active = false
     var size: CGFloat = 28
     let action: () -> Void
 
@@ -38,11 +12,11 @@ struct HUDIconButton: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: size * 0.39, weight: .semibold))
-                .foregroundStyle(active ? Theme.textPrimary : Theme.textSecondary)
+                .foregroundStyle(Theme.textSecondary)
                 .frame(width: size, height: size)
                 .background(
                     RoundedRectangle(cornerRadius: size * 0.25, style: .continuous)
-                        .fill(active ? Color.white.opacity(0.12) : Color.white.opacity(0.045))
+                        .fill(Color.white.opacity(0.045))
                 )
                 .contentShape(RoundedRectangle(cornerRadius: size * 0.25, style: .continuous))
         }
@@ -56,36 +30,58 @@ struct HUDIconButton: View {
 /// Geometry shared with the canvases so the cursor can become a normal arrow
 /// over the open panel without measuring SwiftUI frames on every mouse move.
 enum ReaderSidebarLayout {
-    static let width: CGFloat = 228
-    static let leading: CGFloat = 14
-    static let height: CGFloat = 358
-    /// The panel sits below the native window buttons when windowed.
-    static let windowTop: CGFloat = 44
-    static let fullScreenTop: CGFloat = 14
-    static let hitWidth: CGFloat = leading + width
-    static let maxY: CGFloat = 414
+    static let width: CGFloat = 250
+    static let horizontalPadding: CGFloat = 14
+    /// Same top inset as the library so the window buttons line up.
+    static let topInset: CGFloat = 42
+    static let hitWidth: CGFloat = width
 }
 
 struct ReaderSidebar: View {
     let session: ReadingSession
-    /// Top padding that clears the native window buttons when they are visible.
-    let topInset: CGFloat
 
     var body: some View {
-        panel
-            .modifier(HUDChrome(corner: 16))
-            .padding(.leading, ReaderSidebarLayout.leading)
-            .padding(.top, topInset)
-            .opacity(session.chrome.isSideVisible ? 1 : 0)
-            .offset(x: session.chrome.isSideVisible ? 0 : -18)
-            .animation(.smooth(duration: 0.22), value: session.chrome.isSideVisible)
-            .allowsHitTesting(session.chrome.isSideVisible)
-            .onHover { hovering in
-                session.chrome.setSideHovered(hovering)
-                if hovering {
-                    NSCursor.arrow.set()
-                }
+        VStack(spacing: 0) {
+            WindowTrafficLights()
+                .padding(.leading, 30)
+                .padding(.top, 26)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(height: ReaderSidebarLayout.topInset, alignment: .top)
+
+            panel
+                .padding(.horizontal, ReaderSidebarLayout.horizontalPadding)
+                .padding(.top, 12)
+                .padding(.bottom, 14)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        }
+        .frame(width: ReaderSidebarLayout.width)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .background {
+            // One solid color for the whole sidebar, including the strip
+            // with the window buttons. A translucent material made the top
+            // of the panel pick up the page color and look like a separate
+            // native titlebar.
+            Rectangle()
+                .fill(Theme.background)
+                .allowsHitTesting(false)
+                .shadow(color: .black.opacity(0.45), radius: 22, x: 8, y: 0)
+        }
+        .overlay(alignment: .trailing) {
+            Rectangle()
+                .fill(Color.white.opacity(0.10))
+                .frame(width: 1)
+                .allowsHitTesting(false)
+        }
+        .opacity(session.chrome.isSideVisible ? 1 : 0)
+        .offset(x: session.chrome.isSideVisible ? 0 : -26)
+        .animation(.smooth(duration: 0.22), value: session.chrome.isSideVisible)
+        .allowsHitTesting(session.chrome.isSideVisible)
+        .onHover { hovering in
+            session.chrome.setSideHovered(hovering)
+            if hovering {
+                NSCursor.arrow.set()
             }
+        }
     }
 
     private var panel: some View {
@@ -114,13 +110,14 @@ struct ReaderSidebar: View {
 
             controlRow(label: "Масштаб") { zoomControls }
 
+            Spacer(minLength: 16)
+
+            pageSection
+
             divider
 
             footer
         }
-        .padding(12)
-        .frame(width: ReaderSidebarLayout.width, alignment: .leading)
-        .frame(height: ReaderSidebarLayout.height, alignment: .topLeading)
     }
 
     // MARK: Header
@@ -323,6 +320,87 @@ struct ReaderSidebar: View {
         )
     }
 
+    // MARK: Pages
+
+    private var pageSection: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 8) {
+                sectionLabel("Страница")
+
+                Spacer(minLength: 4)
+
+                Button {
+                    session.beginPageEntry()
+                } label: {
+                    Text(session.currentPageLabel)
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(Theme.textSecondary)
+                        .padding(.horizontal, 7)
+                        .frame(height: 22)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(Color.white.opacity(0.05))
+                        )
+                        .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .help("Перейти к странице (G)")
+            }
+
+            PageScrubber(
+                pages: session.pageSlots,
+                currentPage: session.currentPageIndex,
+                onSeek: { session.goToPage($0) }
+            )
+            .frame(height: 22)
+
+            HStack(spacing: 6) {
+                HUDIconButton(
+                    symbol: "backward.end.fill",
+                    help: "Предыдущая глава (⌘← или [)"
+                ) {
+                    session.previousChapter()
+                }
+
+                HUDIconButton(
+                    symbol: "chevron.left",
+                    help: session.direction == .rtl
+                        ? "Следующая страница (←)"
+                        : "Предыдущая страница (←)"
+                ) {
+                    if session.direction == .rtl {
+                        session.next()
+                    } else {
+                        session.previous()
+                    }
+                }
+
+                Spacer(minLength: 0)
+
+                HUDIconButton(
+                    symbol: "chevron.right",
+                    help: session.direction == .rtl
+                        ? "Предыдущая страница (→)"
+                        : "Следующая страница (→)"
+                ) {
+                    if session.direction == .rtl {
+                        session.previous()
+                    } else {
+                        session.next()
+                    }
+                }
+
+                HUDIconButton(
+                    symbol: "forward.end.fill",
+                    help: "Следующая глава (⌘→ или ])"
+                ) {
+                    session.nextChapter()
+                }
+            }
+        }
+        .zIndex(1)
+    }
+
     private var footer: some View {
         HStack(spacing: 6) {
             HUDIconButton(
@@ -348,7 +426,9 @@ struct ReaderSidebar: View {
     private func sectionLabel(_ text: String) -> some View {
         Text(text.uppercased())
             .font(.system(size: 8.5, weight: .bold, design: .rounded))
-            .tracking(0.9)
+            .tracking(0.6)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
             .foregroundStyle(Theme.textTertiary)
     }
 
@@ -358,7 +438,7 @@ struct ReaderSidebar: View {
     ) -> some View {
         HStack(spacing: 8) {
             sectionLabel(label)
-                .frame(width: 64, alignment: .leading)
+                .frame(width: 82, alignment: .leading)
             content()
         }
         .frame(height: 28)
@@ -369,83 +449,6 @@ struct ReaderSidebar: View {
             .fill(Color.white.opacity(0.08))
             .frame(height: 1)
             .padding(.vertical, 10)
-    }
-}
-
-// MARK: - Bottom HUD
-
-struct ReaderBottomHUD: View {
-    let session: ReadingSession
-
-    var body: some View {
-        HStack(spacing: 9) {
-            HUDIconButton(symbol: "backward.end.fill", help: "Предыдущая глава (⌘← или [)") {
-                session.previousChapter()
-            }
-
-            HUDIconButton(
-                symbol: "chevron.left",
-                help: session.direction == .rtl
-                    ? "Следующая страница (←)"
-                    : "Предыдущая страница (←)"
-            ) {
-                if session.direction == .rtl {
-                    session.next()
-                } else {
-                    session.previous()
-                }
-            }
-
-            PageScrubber(
-                pages: session.pageSlots,
-                currentPage: session.currentPageIndex,
-                onSeek: { session.goToPage($0) }
-            )
-            .frame(height: 24)
-
-            Button {
-                session.beginPageEntry()
-            } label: {
-                Text(session.currentPageLabel)
-                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(Theme.textSecondary)
-                    .frame(width: 94)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help("Перейти к странице (G)")
-
-            HUDIconButton(
-                symbol: "chevron.right",
-                help: session.direction == .rtl
-                    ? "Предыдущая страница (→)"
-                    : "Следующая страница (→)"
-            ) {
-                if session.direction == .rtl {
-                    session.previous()
-                } else {
-                    session.next()
-                }
-            }
-
-            HUDIconButton(symbol: "forward.end.fill", help: "Следующая глава (⌘→ или ])") {
-                session.nextChapter()
-            }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .frame(maxWidth: 1000)
-        .modifier(HUDChrome())
-        .opacity(session.chrome.isBottomVisible ? 1 : 0)
-        .offset(y: session.chrome.isBottomVisible ? 0 : 12)
-        .animation(.smooth(duration: 0.22), value: session.chrome.isBottomVisible)
-        .allowsHitTesting(session.chrome.isBottomVisible)
-        .onHover { hovering in
-            session.chrome.setBottomHovered(hovering)
-            if hovering {
-                NSCursor.arrow.set()
-            }
-        }
     }
 }
 

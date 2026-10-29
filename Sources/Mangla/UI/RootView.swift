@@ -25,10 +25,32 @@ struct RootView: View {
                     )
                     .zIndex(2)
             }
+
+            if model.reading == nil {
+                VStack(spacing: 0) {
+                    HStack(spacing: 0) {
+                        WindowTrafficLights()
+                            .padding(.leading, 30)
+                            .padding(.top, 26)
+
+                        Spacer(minLength: 0)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .zIndex(3)
+            }
         }
         .ignoresSafeArea()
         .frame(minWidth: 980, minHeight: 640)
         .preferredColorScheme(.dark)
+        .onAppear {
+            WindowChrome.setTrafficLightsHidden(true)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            WindowChrome.setTrafficLightsHidden(true)
+        }
         .animation(.smooth(duration: 0.28), value: isReading)
         .alert(
             "Ошибка",

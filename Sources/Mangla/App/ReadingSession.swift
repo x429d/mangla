@@ -46,63 +46,42 @@ final class ReaderBridge {
 @MainActor
 @Observable
 final class ReaderChromeState {
-    /// The two panes are independent: the sidebar is tied to the left screen
-    /// edge, the page scrubber to the bottom edge.
+    /// The full-height sidebar is tied to the left screen edge.
     var isSideVisible = false
-    var isBottomVisible = false
 
     @ObservationIgnored private var isSideHovered = false
-    @ObservationIgnored private var isBottomHovered = false
     @ObservationIgnored private var pointerNearSide = false
-    @ObservationIgnored private var pointerNearBottom = false
     @ObservationIgnored private var sideHideTask: Task<Void, Never>?
-    @ObservationIgnored private var bottomHideTask: Task<Void, Never>?
 
     /// A narrow strip reveals the sidebar so it does not compete with the
     /// left page-turn click zone. Once open, the whole panel plus a margin
     /// keeps it alive.
-    private let sideRevealZone: CGFloat = 22
-    private let sideKeepAliveZone: CGFloat = 272
-    private let bottomZone: CGFloat = 118
+    private let sideRevealZone: CGFloat = 8
+    private let sideKeepAliveZone: CGFloat = 280
     private let hideDelay: Duration
 
     init(hideDelay: Duration = .milliseconds(420)) {
         self.hideDelay = hideDelay
     }
 
-    /// Called from the canvas on every mouse move. `xFromLeft` and `yFromTop`
-    /// are measured in view points from the very left/top edges.
-    func updatePointer(xFromLeft: CGFloat, yFromTop: CGFloat, height: CGFloat) {
-        guard height > 1 else { return }
-
+    /// Called from the canvas on every mouse move. `xFromLeft` is measured in
+    /// view points from the very left edge.
+    func updatePointer(xFromLeft: CGFloat) {
         let sideLimit = isSideVisible ? sideKeepAliveZone : sideRevealZone
         let nearSide = xFromLeft <= sideLimit
-        let nearBottom = yFromTop >= height - bottomZone
+        guard nearSide != pointerNearSide else { return }
 
-        if nearSide != pointerNearSide {
-            pointerNearSide = nearSide
-            if nearSide {
-                revealSide()
-            } else {
-                scheduleSideHide()
-            }
-        }
-
-        if nearBottom != pointerNearBottom {
-            pointerNearBottom = nearBottom
-            if nearBottom {
-                revealBottom()
-            } else {
-                scheduleBottomHide()
-            }
+        pointerNearSide = nearSide
+        if nearSide {
+            revealSide()
+        } else {
+            scheduleSideHide()
         }
     }
 
     func pointerExited() {
         pointerNearSide = false
-        pointerNearBottom = false
         scheduleSideHide()
-        scheduleBottomHide()
     }
 
     func setSideHovered(_ hovering: Bool) {
@@ -115,39 +94,18 @@ final class ReaderChromeState {
         }
     }
 
-    func setBottomHovered(_ hovering: Bool) {
-        guard hovering != isBottomHovered else { return }
-        isBottomHovered = hovering
-        if hovering {
-            revealBottom()
-        } else if !pointerNearBottom {
-            scheduleBottomHide()
-        }
-    }
-
     func hideAll() {
         sideHideTask?.cancel()
-        bottomHideTask?.cancel()
         sideHideTask = nil
-        bottomHideTask = nil
         pointerNearSide = false
-        pointerNearBottom = false
         isSideHovered = false
-        isBottomHovered = false
         isSideVisible = false
-        isBottomVisible = false
     }
 
     private func revealSide() {
         sideHideTask?.cancel()
         sideHideTask = nil
         isSideVisible = true
-    }
-
-    private func revealBottom() {
-        bottomHideTask?.cancel()
-        bottomHideTask = nil
-        isBottomVisible = true
     }
 
     private func scheduleSideHide() {
@@ -158,17 +116,6 @@ final class ReaderChromeState {
             guard !Task.isCancelled, let self else { return }
             guard !self.pointerNearSide, !self.isSideHovered else { return }
             self.isSideVisible = false
-        }
-    }
-
-    private func scheduleBottomHide() {
-        bottomHideTask?.cancel()
-        let delay = hideDelay
-        bottomHideTask = Task { [weak self] in
-            try? await Task.sleep(for: delay)
-            guard !Task.isCancelled, let self else { return }
-            guard !self.pointerNearBottom, !self.isBottomHovered else { return }
-            self.isBottomVisible = false
         }
     }
 }

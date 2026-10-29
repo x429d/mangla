@@ -25,11 +25,22 @@ enum WindowChrome {
         targetWindow?.styleMask.contains(.fullScreen) ?? false
     }
 
-    static func setTrafficLightsHidden(_ hidden: Bool) {
-        guard let window = targetWindow else { return }
+    static func setTrafficLightsHidden(_ hidden: Bool, in target: NSWindow? = nil) {
+        guard let window = target ?? targetWindow else { return }
         for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
-            window.standardWindowButton(button)?.isHidden = hidden
+            guard let button = window.standardWindowButton(button), button.isHidden != hidden else {
+                continue
+            }
+            button.isHidden = hidden
         }
+    }
+
+    static func closeWindow() {
+        targetWindow?.performClose(nil)
+    }
+
+    static func miniaturizeWindow() {
+        targetWindow?.performMiniaturize(nil)
     }
 
     static func toggleFullScreen() {
@@ -67,6 +78,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
         window?.makeKeyAndOrderFront(nil)
         window?.makeFirstResponder(window?.contentView)
+        WindowChrome.setTrafficLightsHidden(true)
         NSApp.activate(ignoringOtherApps: true)
     }
 
@@ -144,19 +156,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     private func removeNativeSidebarToggle() {
-        guard let toolbar = window?.toolbar else { return }
+        if let toolbar = window?.toolbar {
+            for item in toolbar.items.reversed()
+            where item.itemIdentifier.rawValue.contains("toggleSidebar") {
+                if let index = toolbar.items.firstIndex(of: item) {
+                    toolbar.removeItem(at: index)
+                }
+            }
 
-        for item in toolbar.items.reversed()
-        where item.itemIdentifier.rawValue.contains("toggleSidebar") {
-            if let index = toolbar.items.firstIndex(of: item) {
-                toolbar.removeItem(at: index)
+            // The app ships a themed sidebar toggle and custom window
+            // controls; the empty native toolbar otherwise becomes a black
+            // strip in fullscreen.
+            if toolbar.isVisible {
+                toolbar.isVisible = false
             }
         }
 
-        // The app ships a themed sidebar toggle and a custom reader HUD; the
-        // empty native toolbar otherwise becomes a black strip in fullscreen.
-        if toolbar.isVisible {
-            toolbar.isVisible = false
+        // The app draws its own window buttons in the sidebar and above the
+        // library, so the native titlebar never appears over the content
+        // (including fullscreen, where macOS otherwise reveals it together
+        // with the menu bar).
+        if let window {
+            WindowChrome.setTrafficLightsHidden(true, in: window)
         }
     }
 

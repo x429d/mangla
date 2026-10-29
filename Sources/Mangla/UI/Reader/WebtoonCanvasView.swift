@@ -355,26 +355,11 @@ struct WebtoonCanvasRepresentable: NSViewRepresentable {
             guard width > 1, height > 1 else { return }
 
             let point = scrollView.convert(event.locationInWindow, from: nil)
-            let yFromTop = height - point.y
-            session.chrome.updatePointer(
-                xFromLeft: point.x,
-                yFromTop: yFromTop,
-                height: height
-            )
+            session.chrome.updatePointer(xFromLeft: point.x)
 
             // Keep the normal arrow over the floating chrome; show the
             // navigation chevron only over the actual page.
-            let overSidebar = session.chrome.isSideVisible
-                && point.x <= ReaderSidebarLayout.hitWidth
-                && yFromTop <= ReaderSidebarLayout.maxY
-            let bottomWidth = min(1000, max(0, width - 32))
-            let bottomMinX = (width - bottomWidth) / 2
-            let overBottomBar = session.chrome.isBottomVisible
-                && yFromTop >= height - 70
-                && point.x >= bottomMinX
-                && point.x <= bottomMinX + bottomWidth
-
-            if overSidebar || overBottomBar {
+            if session.chrome.isSideVisible && point.x <= ReaderSidebarLayout.hitWidth {
                 ReaderCursors.apply(.arrow)
             } else {
                 let zone = ReaderInteraction.sideZone(x: point.x, width: width)

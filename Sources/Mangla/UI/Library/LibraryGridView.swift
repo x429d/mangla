@@ -24,7 +24,7 @@ struct LibraryGridView: View {
                     startPoint: .top,
                     endPoint: .bottom
                 )
-                .frame(height: 36)
+                .frame(height: sidebarCollapsed ? 54 : 36)
                 .allowsHitTesting(false)
             }
         }
@@ -145,7 +145,7 @@ struct LibraryGridView: View {
                 footer
             }
             .padding(.horizontal, 30)
-            .padding(.top, 38)
+            .padding(.top, sidebarCollapsed ? 54 : 38)
             .padding(.bottom, 34)
         }
         .scrollIndicators(.never)

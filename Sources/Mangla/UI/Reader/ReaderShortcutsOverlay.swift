@@ -46,8 +46,7 @@ struct ReaderShortcutsOverlay: View {
         MouseRow(gesture: "Правый клик", action: "Меню команд"),
         MouseRow(gesture: "Пинч", action: "Зум; два пальца при зуме — панорама"),
         MouseRow(gesture: "Свайп двумя пальцами", action: "Горизонтально — страница; при зуме — панорама"),
-        MouseRow(gesture: "Верхний край", action: "Панель навигации и режимов"),
-        MouseRow(gesture: "Нижний край", action: "Слайдер с превью страниц"),
+        MouseRow(gesture: "Левый край", action: "Панель на всю высоту: режимы, страницы, слайдер"),
     ]
 
     var body: some View {

@@ -2,7 +2,6 @@ import SwiftUI
 
 struct ReaderView: View {
     let session: ReadingSession
-    @State private var isFullScreen = false
 
     var body: some View {
         ZStack {
@@ -21,22 +20,19 @@ struct ReaderView: View {
 
                     EndOfChapterPill(session: session)
                         .padding(.horizontal, 16)
-                        .padding(.bottom, 10)
-
-                    ReaderBottomHUD(session: session)
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 14)
+                        .padding(.bottom, 20)
                 }
                 .allowsHitTesting(!session.isLoadingChapter)
 
-                ReaderSidebar(
-                    session: session,
-                    topInset: isFullScreen
-                        ? ReaderSidebarLayout.fullScreenTop
-                        : ReaderSidebarLayout.windowTop
-                )
+                HStack(spacing: 0) {
+                    ReaderSidebar(session: session)
+
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                 .allowsHitTesting(!session.isLoadingChapter)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
             ReaderToast(session: session)
 
@@ -54,7 +50,6 @@ struct ReaderView: View {
         .animation(.easeOut(duration: 0.14), value: session.isHelpVisible)
         .animation(.easeOut(duration: 0.12), value: session.isPageEntryVisible)
         .onAppear {
-            isFullScreen = WindowChrome.isFullScreen
             session.chrome.hideAll()
             WindowChrome.setTrafficLightsHidden(true)
             NSCursor.arrow.set()
@@ -64,20 +59,8 @@ struct ReaderView: View {
         }
         .onDisappear {
             session.chrome.hideAll()
-            WindowChrome.setTrafficLightsHidden(false)
             NSCursor.arrow.set()
             NSCursor.setHiddenUntilMouseMoves(false)
-        }
-        .onChange(of: session.chrome.isSideVisible) { _, visible in
-            WindowChrome.setTrafficLightsHidden(!visible)
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { _ in
-            isFullScreen = true
-            WindowChrome.setTrafficLightsHidden(true)
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didExitFullScreenNotification)) { _ in
-            isFullScreen = false
-            WindowChrome.setTrafficLightsHidden(!session.chrome.isSideVisible)
         }
     }
 
@@ -153,8 +136,7 @@ struct EndOfChapterPill: View {
     let session: ReadingSession
 
     private var isAtEnd: Bool {
-        session.chrome.isBottomVisible
-            && !session.isLoadingChapter
+        !session.isLoadingChapter
             && session.totalPages > 0
             && session.currentPageIndex >= session.totalPages - 1
     }
