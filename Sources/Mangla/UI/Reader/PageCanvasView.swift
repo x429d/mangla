@@ -268,11 +268,7 @@ struct PageCanvasRepresentable: NSViewRepresentable {
 
             // Keep the normal arrow over the floating HUD panels; show the
             // navigation chevron only over the actual page.
-            let overTopBar = session.chrome.isTopVisible
-                && yFromTop >= 34
-                && yFromTop <= 88
-                && point.x >= 16
-                && point.x <= width - 16
+            let overTopBar = session.chrome.isTopVisible && yFromTop <= 52
             let bottomWidth = min(1000, max(0, width - 32))
             let bottomMinX = (width - bottomWidth) / 2
             let overBottomBar = session.chrome.isBottomVisible

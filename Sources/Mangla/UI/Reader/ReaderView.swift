@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ReaderView: View {
     let session: ReadingSession
+    @State private var isFullScreen = false
 
     var body: some View {
         ZStack {
@@ -15,9 +16,10 @@ struct ReaderView: View {
             }
 
             VStack(spacing: 0) {
-                ReaderTopHUD(session: session)
-                    .padding(.horizontal, 16)
-                    .padding(.top, 38)
+                ReaderTopHUD(
+                    session: session,
+                    leadingInset: isFullScreen ? 0 : 70
+                )
 
                 Spacer(minLength: 0)
 
@@ -35,6 +37,7 @@ struct ReaderView: View {
         }
         .background(Theme.readerBackground)
         .onAppear {
+            isFullScreen = WindowChrome.isFullScreen
             session.chrome.hideAll()
             WindowChrome.setTrafficLightsHidden(true)
             NSCursor.arrow.set()
@@ -52,9 +55,11 @@ struct ReaderView: View {
             WindowChrome.setTrafficLightsHidden(!visible)
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { _ in
+            isFullScreen = true
             WindowChrome.setTrafficLightsHidden(true)
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didExitFullScreenNotification)) { _ in
+            isFullScreen = false
             WindowChrome.setTrafficLightsHidden(!session.chrome.isTopVisible)
         }
     }

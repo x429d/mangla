@@ -50,6 +50,9 @@ struct HUDIconButton: View {
 
 struct ReaderTopHUD: View {
     let session: ReadingSession
+    /// Space for the native window buttons when the bar is embedded into the
+    /// titlebar area. Zero in fullscreen, where macOS hides the buttons.
+    let leadingInset: CGFloat
 
     var body: some View {
         HStack(spacing: 10) {
@@ -109,6 +112,7 @@ struct ReaderTopHUD: View {
             }
         }
         .padding(.horizontal, 10)
+        .padding(.leading, leadingInset)
         .padding(.vertical, 8)
         .modifier(HUDChrome())
         .opacity(session.chrome.isTopVisible ? 1 : 0)

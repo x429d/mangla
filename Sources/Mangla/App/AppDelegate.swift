@@ -21,6 +21,10 @@ enum WindowChrome {
         return NSApp.windows.first { $0.isVisible && $0.canBecomeMain }
     }
 
+    static var isFullScreen: Bool {
+        targetWindow?.styleMask.contains(.fullScreen) ?? false
+    }
+
     static func setTrafficLightsHidden(_ hidden: Bool) {
         guard let window = targetWindow else { return }
         for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
