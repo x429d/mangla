@@ -97,7 +97,7 @@ struct ReaderView: View {
             VStack(spacing: 12) {
                 ProgressView()
                     .controlSize(.small)
-                Text("Загрузка главы")
+                Text(t(.loadingChapter))
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(Theme.textSecondary)
             }
@@ -147,7 +147,7 @@ struct EndOfChapterPill: View {
                 session.nextChapter()
             } label: {
                 HStack(spacing: 8) {
-                    Text("Следующая глава")
+                    Text(t(.nextChapter))
                     Image(systemName: "arrow.right")
                         .font(.system(size: 10, weight: .bold))
                 }

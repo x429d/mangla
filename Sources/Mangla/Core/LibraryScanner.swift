@@ -6,8 +6,8 @@ enum LibraryScanError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .unreadable(let url): "Не удалось прочитать папку \(url.lastPathComponent)"
-        case .notADirectory(let url): "\(url.lastPathComponent) не является папкой"
+        case .unreadable(let url): tf(.scanUnreadable, url.lastPathComponent)
+        case .notADirectory(let url): tf(.scanNotDirectory, url.lastPathComponent)
         }
     }
 }
@@ -72,7 +72,7 @@ enum LibraryScanner {
 
         mangas.sort { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
 
-        let name = root.lastPathComponent.isEmpty ? "Коллекция" : root.lastPathComponent
+        let name = root.lastPathComponent
         return ProjectSnapshot(projectURL: root, name: name, mangas: mangas)
     }
 

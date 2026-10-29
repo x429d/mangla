@@ -91,9 +91,9 @@ enum LibraryFilter: String, CaseIterable, Identifiable, Sendable {
 
     var title: String {
         switch self {
-        case .all: "Все"
-        case .reading: "Читаю"
-        case .completed: "Прочитано"
+        case .all: t(.filterAll)
+        case .reading: t(.filterReading)
+        case .completed: t(.filterCompleted)
         }
     }
 
@@ -142,9 +142,9 @@ enum LayoutMode: String, CaseIterable, Identifiable, Sendable {
 
     var title: String {
         switch self {
-        case .single: "Одна страница"
-        case .spread: "Разворот"
-        case .webtoon: "Webtoon"
+        case .single: t(.layoutSingle)
+        case .spread: t(.layoutSpread)
+        case .webtoon: t(.layoutWebtoon)
         }
     }
 
@@ -174,16 +174,16 @@ enum FitMode: String, CaseIterable, Identifiable, Sendable {
 
     var title: String {
         switch self {
-        case .fitHeight: "По высоте окна"
-        case .fitWidth: "По ширине окна"
-        case .original: "Оригинальный размер"
+        case .fitHeight: t(.fitHeight)
+        case .fitWidth: t(.fitWidth)
+        case .original: t(.fitOriginal)
         }
     }
 
     var shortTitle: String {
         switch self {
-        case .fitHeight: "Высота"
-        case .fitWidth: "Ширина"
+        case .fitHeight: t(.fitHeightShort)
+        case .fitWidth: t(.fitWidthShort)
         case .original: "100%"
         }
     }
@@ -210,7 +210,7 @@ enum ReadingDirection: String, CaseIterable, Identifiable, Sendable {
     case rtl
 
     var id: String { rawValue }
-    var title: String { self == .rtl ? "Справа налево" : "Слева направо" }
+    var title: String { self == .rtl ? t(.directionRTL) : t(.directionLTR) }
     var shortTitle: String { self == .rtl ? "RTL" : "LTR" }
 }
 

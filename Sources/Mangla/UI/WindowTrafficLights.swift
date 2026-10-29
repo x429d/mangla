@@ -16,7 +16,7 @@ struct WindowTrafficLights: View {
             button(
                 color: closeColor,
                 symbol: "xmark",
-                help: "Закрыть окно"
+                help: t(.closeWindow)
             ) {
                 WindowChrome.closeWindow()
             }
@@ -24,7 +24,7 @@ struct WindowTrafficLights: View {
             button(
                 color: minimizeColor,
                 symbol: "minus",
-                help: "Свернуть"
+                help: t(.minimizeWindow)
             ) {
                 WindowChrome.miniaturizeWindow()
             }
@@ -36,7 +36,7 @@ struct WindowTrafficLights: View {
                 symbol: isFullScreen
                     ? "arrow.down.right.and.arrow.up.left"
                     : "arrow.up.left.and.arrow.down.right",
-                help: isFullScreen ? "Выйти из полного экрана (F)" : "Полный экран (F)"
+                help: isFullScreen ? t(.exitFullScreenHelp) : t(.fullScreenHelp)
             ) {
                 WindowChrome.toggleFullScreen()
             }

@@ -33,27 +33,31 @@ enum Theme {
 
 enum Format {
     static func pages(_ count: Int) -> String {
-        "\(count) \(plural(count, "страница", "страницы", "страниц"))"
+        Localization.current.counted(count, .page)
     }
 
     static func chapters(_ count: Int) -> String {
-        "\(count) \(plural(count, "глава", "главы", "глав"))"
+        Localization.current.counted(count, .chapter)
     }
 
-    static func pagesCompact(_ count: Int) -> String { "\(count) стр." }
-    static func chaptersCompact(_ count: Int) -> String { "\(count) гл." }
+    static func mangas(_ count: Int) -> String {
+        Localization.current.counted(count, .manga)
+    }
+
+    static func collections(_ count: Int) -> String {
+        Localization.current.counted(count, .collection)
+    }
+
+    static func pagesCompact(_ count: Int) -> String {
+        Localization.current.counted(count, .page, compact: true)
+    }
+
+    static func chaptersCompact(_ count: Int) -> String {
+        Localization.current.counted(count, .chapter, compact: true)
+    }
 
     static func percent(_ value: Double) -> String {
         "\(Int((value * 100).rounded()))%"
-    }
-
-    static func plural(_ count: Int, _ one: String, _ few: String, _ many: String) -> String {
-        let mod100 = abs(count) % 100
-        let mod10 = abs(count) % 10
-        if mod100 >= 11, mod100 <= 14 { return many }
-        if mod10 == 1 { return one }
-        if mod10 >= 2, mod10 <= 4 { return few }
-        return many
     }
 }
 
@@ -210,7 +214,7 @@ struct SidebarToggleButton: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .help(isCollapsed ? "Показать панель (⌘\\)" : "Скрыть панель (⌘\\)")
+        .help(isCollapsed ? t(.showSidebarHelp) : t(.hideSidebarHelp))
     }
 }
 
@@ -238,9 +242,9 @@ struct StatusBadge: View {
 
     private var label: String {
         switch status {
-        case .unread: "НОВОЕ"
-        case .reading: "ЧИТАЮ"
-        case .completed: "ПРОЧИТАНО"
+        case .unread: t(.statusUnread)
+        case .reading: t(.statusReading)
+        case .completed: t(.statusCompleted)
         }
     }
 

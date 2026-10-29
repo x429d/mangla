@@ -78,7 +78,8 @@ final class AppModel {
     }
 
     var projectName: String {
-        selectedCollection?.name ?? "Коллекция"
+        let name = selectedCollection?.name.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return name.isEmpty ? t(.defaultCollectionName) : name
     }
 
     var lastMangaID: String? {
@@ -166,7 +167,7 @@ final class AppModel {
                     selectedID = id
                 }
             } else {
-                errorMessage = "Папка коллекции недоступна: \(url.path)"
+                errorMessage = tf(.collectionUnavailable, url.path)
             }
         }
 
@@ -280,9 +281,9 @@ final class AppModel {
 
     func addCollections() {
         let panel = NSOpenPanel()
-        panel.title = "Добавить коллекции"
-        panel.message = "Выберите одну или несколько папок с мангой или главами."
-        panel.prompt = "Добавить"
+        panel.title = t(.addCollectionsTitle)
+        panel.message = t(.addCollectionsMessage)
+        panel.prompt = t(.addCollectionsPrompt)
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = true
@@ -323,7 +324,7 @@ final class AppModel {
 
         guard !added.isEmpty else {
             if !urls.isEmpty {
-                errorMessage = "Эти коллекции уже добавлены."
+                errorMessage = t(.alreadyAdded)
             }
             return
         }
@@ -453,7 +454,7 @@ final class AppModel {
 
         collections[index].mangas = snapshot.mangas
         collections[index].isAvailable = true
-        if collections[index].name.isEmpty {
+        if collections[index].name.isEmpty, !snapshot.name.isEmpty {
             collections[index].name = snapshot.name
         }
 

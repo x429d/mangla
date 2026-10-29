@@ -105,7 +105,7 @@ struct SidebarView: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(Theme.textTertiary)
-            TextField("Поиск в коллекции", text: $model.searchText)
+            TextField(t(.searchPlaceholder), text: $model.searchText)
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))
                 .foregroundStyle(Theme.textPrimary)
@@ -139,7 +139,7 @@ struct SidebarView: View {
 
     private var collectionsHeader: some View {
         HStack(spacing: 8) {
-            Text("КОЛЛЕКЦИИ")
+            Text(t(.collectionsHeader))
                 .font(.system(size: 9, weight: .bold, design: .rounded))
                 .tracking(1.5)
                 .foregroundStyle(Theme.textTertiary)
@@ -158,7 +158,7 @@ struct SidebarView: View {
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
-            .help("Добавить коллекцию (⌘O)")
+            .help(t(.addCollectionHelp))
         }
     }
 
@@ -188,7 +188,7 @@ struct SidebarView: View {
         VStack(spacing: 0) {
             Rectangle().fill(Theme.stroke).frame(height: 1)
             HStack(spacing: 6) {
-                Text("\(model.collections.count) \(Format.plural(model.collections.count, "коллекция", "коллекции", "коллекций"))")
+                Text(Format.collections(model.collections.count))
                 Spacer()
             }
             .font(.system(size: 10, weight: .medium))
@@ -270,10 +270,10 @@ struct CollectionRow: View {
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
         .contextMenu {
-            Button(collection.isAvailable ? "Обновить" : "Проверить снова") { onRefresh() }
-            Button("Показать в Finder") { onReveal() }
+            Button(collection.isAvailable ? t(.refresh) : t(.checkAgain)) { onRefresh() }
+            Button(t(.revealInFinder)) { onReveal() }
             Divider()
-            Button("Убрать из приложения", role: .destructive) { onRemove() }
+            Button(t(.removeFromApp), role: .destructive) { onRemove() }
         }
     }
 
@@ -283,7 +283,7 @@ struct CollectionRow: View {
     }
 
     private var subtitle: String {
-        guard collection.isAvailable else { return "Папка недоступна" }
-        return "\(collection.mangaCount) \(Format.plural(collection.mangaCount, "манга", "манги", "манг")) · \(collection.chapterCount) \(Format.plural(collection.chapterCount, "глава", "главы", "глав"))"
+        guard collection.isAvailable else { return t(.folderUnavailable) }
+        return "\(Format.mangas(collection.mangaCount)) · \(Format.chapters(collection.chapterCount))"
     }
 }

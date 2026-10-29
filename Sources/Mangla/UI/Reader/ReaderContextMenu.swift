@@ -17,49 +17,49 @@ final class ReaderContextMenuController: NSObject {
         let menu = NSMenu()
         menu.autoenablesItems = false
 
-        menu.addItem(item("Предыдущая страница", #selector(previousPage(_:))))
-        menu.addItem(item("Следующая страница", #selector(nextPage(_:))))
+        menu.addItem(item(t(.previousPage), #selector(previousPage(_:))))
+        menu.addItem(item(t(.nextPage), #selector(nextPage(_:))))
         menu.addItem(.separator())
-        menu.addItem(item("Предыдущая глава", #selector(previousChapter(_:))))
-        menu.addItem(item("Следующая глава", #selector(nextChapter(_:))))
+        menu.addItem(item(t(.previousChapter), #selector(previousChapter(_:))))
+        menu.addItem(item(t(.nextChapter), #selector(nextChapter(_:))))
         menu.addItem(.separator())
-        menu.addItem(item("Перейти к странице…", #selector(goToPage(_:))))
+        menu.addItem(item(t(.goToPage), #selector(goToPage(_:))))
 
         menu.addItem(.separator())
 
-        let layoutItem = item("Режим", nil)
+        let layoutItem = item(t(.mode), nil)
         layoutItem.submenu = layoutMenu()
         menu.addItem(layoutItem)
 
-        let directionItem = item("Направление", nil)
+        let directionItem = item(t(.direction), nil)
         directionItem.isEnabled = session.layoutMode != .webtoon
         directionItem.submenu = directionMenu()
         menu.addItem(directionItem)
 
-        let fitItem = item("Вписывание", nil)
+        let fitItem = item(t(.fit), nil)
         fitItem.isEnabled = session.layoutMode != .webtoon
         fitItem.submenu = fitMenu()
         menu.addItem(fitItem)
 
         menu.addItem(.separator())
 
-        let zoomIn = item("Увеличить", #selector(zoomIn(_:)))
+        let zoomIn = item(t(.zoomIn), #selector(zoomIn(_:)))
         zoomIn.isEnabled = session.zoom < 4.99
         menu.addItem(zoomIn)
 
-        let zoomOut = item("Уменьшить", #selector(zoomOut(_:)))
+        let zoomOut = item(t(.zoomOut), #selector(zoomOut(_:)))
         zoomOut.isEnabled = session.zoom > 1.01
         menu.addItem(zoomOut)
 
-        let resetZoom = item("Сбросить масштаб", #selector(resetZoom(_:)))
+        let resetZoom = item(t(.resetZoom), #selector(resetZoom(_:)))
         resetZoom.isEnabled = session.zoom > 1.01
         menu.addItem(resetZoom)
 
         menu.addItem(.separator())
-        menu.addItem(item("Управление…", #selector(showHelp(_:))))
-        menu.addItem(item("Полный экран", #selector(toggleFullScreen(_:))))
+        menu.addItem(item(t(.openControls), #selector(showHelp(_:))))
+        menu.addItem(item(t(.fullScreen), #selector(toggleFullScreen(_:))))
         menu.addItem(.separator())
-        menu.addItem(item("В библиотеку", #selector(closeReader(_:))))
+        menu.addItem(item(t(.backToLibrary), #selector(closeReader(_:))))
 
         return menu
     }

@@ -86,7 +86,7 @@ struct LibraryGridView: View {
         VStack(spacing: 14) {
             ProgressView()
                 .controlSize(.small)
-            Text("Сканирую коллекцию…")
+            Text(t(.scanningCollection))
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(Theme.textSecondary)
         }
@@ -97,10 +97,10 @@ struct LibraryGridView: View {
             Image(systemName: "folder")
                 .font(.system(size: 30, weight: .light))
                 .foregroundStyle(Theme.textTertiary)
-            Text("Выберите коллекцию")
+            Text(t(.selectCollection))
                 .font(.system(size: 18, weight: .semibold, design: .serif))
                 .foregroundStyle(Theme.textSecondary)
-            Button("Добавить коллекцию") { model.addCollections() }
+            Button(t(.addCollection)) { model.addCollections() }
                 .buttonStyle(SecondaryButtonStyle())
         }
     }
@@ -186,7 +186,7 @@ struct LibraryGridView: View {
                 Text("/")
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(Theme.textTertiary.opacity(0.6))
-                Text("КОЛЛЕКЦИИ")
+                Text(t(.collectionsHeader))
                     .font(.system(size: 9, weight: .bold, design: .rounded))
                     .tracking(1.4)
                     .foregroundStyle(Theme.textSecondary)
@@ -212,14 +212,14 @@ struct LibraryGridView: View {
                     .overlay(Circle().strokeBorder(Theme.stroke, lineWidth: 1))
             }
             .buttonStyle(.plain)
-            .help("Обновить коллекцию (⌘R)")
+            .help(t(.refreshCollectionHelp))
 
             Menu {
-                Button("Добавить коллекцию…") { model.addCollections() }
-                Button("Обновить коллекцию") { model.refresh() }
+                Button(t(.menuAddCollection)) { model.addCollections() }
+                Button(t(.refreshCollection)) { model.refresh() }
                 Divider()
-                Button("Показать в Finder") { model.revealProject() }
-                Button("Убрать из приложения", role: .destructive) {
+                Button(t(.revealInFinder)) { model.revealProject() }
+                Button(t(.removeFromApp), role: .destructive) {
                     model.removeSelectedCollection()
                 }
             } label: {
@@ -242,7 +242,7 @@ struct LibraryGridView: View {
     private var header: some View {
         HStack(alignment: .bottom, spacing: 20) {
             VStack(alignment: .leading, spacing: 5) {
-                Text("КОЛЛЕКЦИЯ")
+                Text(t(.collectionHeader))
                     .font(.system(size: 9, weight: .bold, design: .rounded))
                     .tracking(1.6)
                     .foregroundStyle(Theme.accentSoft)
@@ -256,11 +256,11 @@ struct LibraryGridView: View {
                     .minimumScaleFactor(0.7)
 
                 HStack(spacing: 8) {
-                    Text("\(model.mangas.count) \(Format.plural(model.mangas.count, "манга", "манги", "манг"))")
+                    Text(Format.mangas(model.mangas.count))
                     Text("·")
-                    Text("\(model.mangas.reduce(0) { $0 + $1.chapterCount }) \(Format.plural(model.mangas.reduce(0) { $0 + $1.chapterCount }, "глава", "главы", "глав"))")
+                    Text(Format.chapters(model.mangas.reduce(0) { $0 + $1.chapterCount }))
                     Text("·")
-                    Text("\(model.mangas.reduce(0) { $0 + $1.pageCount }) \(Format.plural(model.mangas.reduce(0) { $0 + $1.pageCount }, "страница", "страницы", "страниц"))")
+                    Text(Format.pages(model.mangas.reduce(0) { $0 + $1.pageCount }))
                 }
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(Theme.textTertiary)
@@ -295,13 +295,13 @@ struct LibraryGridView: View {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 26, weight: .light))
                     .foregroundStyle(Theme.textTertiary)
-                Text("Ничего не найдено")
+                Text(t(.nothingFound))
                     .font(.system(size: 16, weight: .semibold, design: .serif))
                     .foregroundStyle(Theme.textSecondary)
-                Text("Попробуйте изменить запрос или фильтр.")
+                Text(t(.tryAnotherQuery))
                     .font(.system(size: 11))
                     .foregroundStyle(Theme.textTertiary)
-                Button("Сбросить фильтры") {
+                Button(t(.resetFilters)) {
                     withAnimation(Theme.snappy) { model.clearFilters() }
                 }
                 .buttonStyle(SecondaryButtonStyle())
@@ -334,7 +334,7 @@ struct LibraryGridView: View {
 
     private var footer: some View {
         HStack(spacing: 12) {
-            Text("Показано \(model.pageRangeText)")
+            Text(tf(.showingRange, model.pageRangeText))
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(Theme.textTertiary)
 
@@ -343,7 +343,7 @@ struct LibraryGridView: View {
             if !model.searchText.isEmpty {
                 HStack(spacing: 5) {
                     Image(systemName: "magnifyingglass")
-                    Text("«\(model.searchText)»")
+                    Text(tf(.searchQuote, model.searchText))
                 }
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(Theme.accentSoft.opacity(0.8))
@@ -381,7 +381,7 @@ struct PaginationBar: View {
             }
             .buttonStyle(.plain)
             .disabled(page <= 0)
-            .help("Предыдущая страница")
+            .help(t(.previousPage))
 
             Text("\(page + 1) / \(pageCount)")
                 .font(.system(size: 10, weight: .semibold, design: .monospaced))
@@ -397,7 +397,7 @@ struct PaginationBar: View {
             }
             .buttonStyle(.plain)
             .disabled(page >= pageCount - 1)
-            .help("Следующая страница")
+            .help(t(.nextPage))
         }
         .padding(.horizontal, 7)
         .frame(height: 30)

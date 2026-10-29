@@ -6,48 +6,52 @@ struct ReaderShortcutsOverlay: View {
     let session: ReadingSession
 
     private struct KeyRow: Identifiable {
-        let id = UUID()
+        var id: String { keys.joined(separator: " ") + "|" + action }
         let keys: [String]
         let action: String
     }
 
     private struct MouseRow: Identifiable {
-        let id = UUID()
+        var id: String { gesture + "|" + action }
         let gesture: String
         let action: String
     }
 
-    private let keyboardRows: [KeyRow] = [
-        KeyRow(keys: ["←", "→", "A", "D"], action: "Страница назад / вперёд"),
-        KeyRow(keys: [",", ".", "J", "K"], action: "То же в порядке чтения"),
-        KeyRow(keys: ["Space", "PgDn"], action: "Экран или страница вперёд"),
-        KeyRow(keys: ["⇧Space", "PgUp"], action: "Экран или страница назад"),
-        KeyRow(keys: ["↑", "↓"], action: "Прокрутка (webtoon) / страница"),
-        KeyRow(keys: ["Home", "End"], action: "Первая / последняя страница"),
-        KeyRow(keys: ["[", "]"], action: "Глава назад / вперёд"),
-        KeyRow(keys: ["⌘←", "⌘→"], action: "Глава назад / вперёд"),
-        KeyRow(keys: ["1", "2", "3"], action: "Страница / разворот / webtoon"),
-        KeyRow(keys: ["T"], action: "Направление RTL ↔ LTR"),
-        KeyRow(keys: ["H", "W", "O"], action: "Вписать по высоте / ширине / 1:1"),
-        KeyRow(keys: ["+", "−", "0"], action: "Зум / сброс к 100%"),
-        KeyRow(keys: ["G"], action: "Перейти к странице"),
-        KeyRow(keys: ["F", "⌃⌘F"], action: "Полный экран"),
-        KeyRow(keys: ["?"], action: "Эта шпаргалка"),
-        KeyRow(keys: ["Esc", "⌘⇧W"], action: "В библиотеку"),
-    ]
+    private var keyboardRows: [KeyRow] {
+        [
+            KeyRow(keys: ["←", "→", "A", "D"], action: t(.helpPageBackForward)),
+            KeyRow(keys: [",", ".", "J", "K"], action: t(.helpPageReadingOrder)),
+            KeyRow(keys: ["Space", "PgDn"], action: t(.helpScreenForward)),
+            KeyRow(keys: ["⇧Space", "PgUp"], action: t(.helpScreenBackward)),
+            KeyRow(keys: ["↑", "↓"], action: t(.helpScrollWebtoon)),
+            KeyRow(keys: ["Home", "End"], action: t(.helpFirstLastPage)),
+            KeyRow(keys: ["[", "]"], action: t(.helpChapterBackForward)),
+            KeyRow(keys: ["⌘←", "⌘→"], action: t(.helpChapterBackForward)),
+            KeyRow(keys: ["1", "2", "3"], action: t(.helpLayoutModes)),
+            KeyRow(keys: ["T"], action: t(.helpDirection)),
+            KeyRow(keys: ["H", "W", "O"], action: t(.helpFitModes)),
+            KeyRow(keys: ["+", "−", "0"], action: t(.helpZoom)),
+            KeyRow(keys: ["G"], action: t(.helpGoToPage)),
+            KeyRow(keys: ["F", "⌃⌘F"], action: t(.helpFullScreen)),
+            KeyRow(keys: ["?"], action: t(.helpThisSheet)),
+            KeyRow(keys: ["Esc", "⌘⇧W"], action: t(.helpToLibrary)),
+        ]
+    }
 
-    private let mouseRows: [MouseRow] = [
-        MouseRow(gesture: "Клик слева / справа", action: "Страница назад / вперёд"),
-        MouseRow(gesture: "Двойной клик в центре", action: "2.5× и обратно"),
-        MouseRow(gesture: "Колесо", action: "Страница, если всё помещается; иначе прокрутка"),
-        MouseRow(gesture: "⌘ + колесо", action: "Зум к курсору"),
-        MouseRow(gesture: "Перетаскивание", action: "Панорама при зуме и длинной странице"),
-        MouseRow(gesture: "Боковые кнопки", action: "Страница назад / вперёд"),
-        MouseRow(gesture: "Правый клик", action: "Меню команд"),
-        MouseRow(gesture: "Пинч", action: "Зум; два пальца при зуме — панорама"),
-        MouseRow(gesture: "Свайп двумя пальцами", action: "Горизонтально — страница; при зуме — панорама"),
-        MouseRow(gesture: "Левый край", action: "Панель на всю высоту: режимы, страницы, слайдер"),
-    ]
+    private var mouseRows: [MouseRow] {
+        [
+            MouseRow(gesture: t(.helpClickSides), action: t(.helpPageBackForward)),
+            MouseRow(gesture: t(.helpDoubleClickCenter), action: t(.helpSmartZoom)),
+            MouseRow(gesture: t(.helpWheel), action: t(.helpWheelAction)),
+            MouseRow(gesture: t(.helpCommandWheel), action: t(.helpZoomToCursor)),
+            MouseRow(gesture: t(.helpDrag), action: t(.helpDragAction)),
+            MouseRow(gesture: t(.helpSideButtons), action: t(.helpPageBackForward)),
+            MouseRow(gesture: t(.helpRightClick), action: t(.helpCommandMenu)),
+            MouseRow(gesture: t(.helpPinch), action: t(.helpPinchAction)),
+            MouseRow(gesture: t(.helpTwoFingerSwipe), action: t(.helpTwoFingerSwipeAction)),
+            MouseRow(gesture: t(.helpLeftEdge), action: t(.helpLeftEdgeAction)),
+        ]
+    }
 
     var body: some View {
         ZStack {
@@ -68,7 +72,7 @@ struct ReaderShortcutsOverlay: View {
 
             HStack(alignment: .top, spacing: 24) {
                 column(
-                    title: "КЛАВИАТУРА",
+                    title: t(.helpKeyboard),
                     symbol: "keyboard"
                 ) {
                     ForEach(keyboardRows) { row in
@@ -82,7 +86,7 @@ struct ReaderShortcutsOverlay: View {
                     .frame(width: 1)
 
                 column(
-                    title: "МЫШЬ И ТРЕКПАД",
+                    title: t(.helpMouse),
                     symbol: "computermouse"
                 ) {
                     ForEach(mouseRows) { row in
@@ -116,10 +120,10 @@ struct ReaderShortcutsOverlay: View {
             Image(systemName: "questionmark.circle")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(Theme.accentSoft)
-            Text("Управление")
+            Text(t(.helpTitle))
                 .font(.system(size: 19, weight: .semibold, design: .serif))
                 .foregroundStyle(Theme.textPrimary)
-            Text("шпаргалка")
+            Text(t(.helpSubtitle))
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(Theme.textTertiary)
             Spacer(minLength: 12)
@@ -133,7 +137,7 @@ struct ReaderShortcutsOverlay: View {
                     .background(Circle().fill(Color.white.opacity(0.07)))
             }
             .buttonStyle(.plain)
-            .help("Закрыть (Esc)")
+            .help(t(.helpClose))
         }
     }
 
@@ -192,7 +196,7 @@ struct ReaderShortcutsOverlay: View {
             Image(systemName: "info.circle")
                 .font(.system(size: 9, weight: .semibold))
                 .foregroundStyle(Theme.textTertiary)
-            Text("В RTL стрелки и клик-зоны зеркальны. Нажатия читаются по физическим клавишам, поэтому раскладка не важна.")
+            Text(t(.helpFooter))
                 .font(.system(size: 9.5))
                 .foregroundStyle(Theme.textTertiary)
                 .fixedSize(horizontal: false, vertical: true)

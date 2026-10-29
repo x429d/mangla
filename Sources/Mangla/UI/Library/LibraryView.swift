@@ -63,12 +63,12 @@ struct WelcomeView: View {
                     .tracking(-1.5)
                     .foregroundStyle(Theme.textPrimary)
 
-                Text("Тихая, быстрая читалка манги для macOS")
+                Text(t(.welcomeTagline))
                     .font(.system(size: 16, weight: .regular))
                     .foregroundStyle(Theme.textSecondary)
                     .padding(.top, 8)
 
-                Text("Добавьте одну или несколько папок-коллекций — приложение будет держать их открытыми одновременно.")
+                Text(t(.welcomeDescription))
                     .font(.system(size: 11))
                     .foregroundStyle(Theme.textTertiary)
                     .multilineTextAlignment(.center)
@@ -81,7 +81,7 @@ struct WelcomeView: View {
                     } label: {
                         HStack(spacing: 8) {
                             Image(systemName: "folder.badge.plus")
-                            Text("Добавить коллекцию")
+                            Text(t(.addCollection))
                         }
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.white)
@@ -107,7 +107,7 @@ struct WelcomeView: View {
                     } label: {
                         HStack(spacing: 7) {
                             Image(systemName: "questionmark.circle")
-                            Text("Как это работает")
+                            Text(t(.welcomeHowItWorks))
                         }
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(Theme.textSecondary)
@@ -148,7 +148,7 @@ struct WelcomeView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "bolt.fill")
                         .foregroundStyle(Theme.accentSoft)
-                    Text("Нативный AppKit · ProMotion")
+                    Text(t(.welcomeFooter))
                 }
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(Theme.textTertiary)
@@ -163,20 +163,20 @@ struct StructureExplainer: View {
     var body: some View {
         HStack(spacing: 0) {
             column(
-                title: "Коллекция",
-                subtitle: "любая папка",
+                title: t(.structureCollection),
+                subtitle: t(.structureAnyFolder),
                 lines: ["/Manga Library"]
             )
             arrow
             column(
-                title: "Манга",
-                subtitle: "папка с названием",
+                title: t(.structureManga),
+                subtitle: t(.structureNamedFolder),
                 lines: ["/Berserk", "/One Piece"]
             )
             arrow
             column(
-                title: "Глава",
-                subtitle: "картинки или подпапки",
+                title: t(.structureChapter),
+                subtitle: t(.structureImagesOrSubfolders),
                 lines: ["/001.webp", "/Chapter 02/"]
             )
         }
@@ -257,22 +257,22 @@ struct EmptyCollectionView: View {
             }
             .frame(height: 138)
 
-            Text("В коллекции нет манги")
+            Text(t(.emptyNoManga))
                 .font(.system(size: 22, weight: .semibold, design: .serif))
                 .foregroundStyle(Theme.textPrimary)
 
-            Text("Добавьте папки с мангой в эту коллекцию — они появятся здесь автоматически.")
+            Text(t(.emptyAddFolders))
                 .font(.system(size: 13))
                 .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 420)
 
             HStack(spacing: 10) {
-                Button("Обновить") { onRefresh() }
+                Button(t(.refresh)) { onRefresh() }
                     .buttonStyle(SecondaryButtonStyle())
-                Button("Добавить коллекцию") { onAddCollection() }
+                Button(t(.addCollection)) { onAddCollection() }
                     .buttonStyle(SecondaryButtonStyle())
-                Button("Показать в Finder") { onReveal() }
+                Button(t(.revealInFinder)) { onReveal() }
                     .buttonStyle(SecondaryButtonStyle())
             }
             .padding(.top, 4)
@@ -295,7 +295,7 @@ struct UnavailableCollectionView: View {
                 .font(.system(size: 48, weight: .light))
                 .foregroundStyle(Theme.textTertiary)
 
-            Text("Папка коллекции недоступна")
+            Text(t(.unavailableCollectionTitle))
                 .font(.system(size: 22, weight: .semibold, design: .serif))
                 .foregroundStyle(Theme.textPrimary)
 
@@ -312,12 +312,12 @@ struct UnavailableCollectionView: View {
                 .frame(maxWidth: 520)
 
             HStack(spacing: 10) {
-                Button(isChecking ? "Проверяю…" : "Проверить снова") { onRetry() }
+                Button(isChecking ? t(.checking) : t(.checkAgain)) { onRetry() }
                     .buttonStyle(SecondaryButtonStyle())
                     .disabled(isChecking)
-                Button("Показать в Finder") { onReveal() }
+                Button(t(.revealInFinder)) { onReveal() }
                     .buttonStyle(SecondaryButtonStyle())
-                Button("Убрать из приложения", role: .destructive) { onRemove() }
+                Button(t(.removeFromApp), role: .destructive) { onRemove() }
                     .buttonStyle(SecondaryButtonStyle())
             }
             .padding(.top, 4)

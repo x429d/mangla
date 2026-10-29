@@ -288,79 +288,79 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         let appMenu = NSMenu()
         appMenuItem.submenu = appMenu
 
-        appMenu.addItem(withTitle: "О Mangla", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        appMenu.addItem(withTitle: t(.menuAbout), action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "Скрыть Mangla", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        appMenu.addItem(withTitle: t(.menuHide), action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         let hideOthers = NSMenuItem(
-            title: "Скрыть остальные",
+            title: t(.menuHideOthers),
             action: #selector(NSApplication.hideOtherApplications(_:)),
             keyEquivalent: "h"
         )
         hideOthers.keyEquivalentModifierMask = [.command, .option]
         appMenu.addItem(hideOthers)
-        appMenu.addItem(withTitle: "Показать все", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
+        appMenu.addItem(withTitle: t(.menuShowAll), action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "Завершить Mangla", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(withTitle: t(.menuQuit), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
 
         let fileMenuItem = NSMenuItem()
         mainMenu.addItem(fileMenuItem)
-        let fileMenu = NSMenu(title: "Файл")
+        let fileMenu = NSMenu(title: t(.menuFile))
         fileMenuItem.submenu = fileMenu
-        fileMenu.addItem(menuItem("Добавить коллекцию…", #selector(openProject(_:)), "o"))
-        fileMenu.addItem(menuItem("Обновить коллекцию", #selector(refreshProject(_:)), "r"))
+        fileMenu.addItem(menuItem(t(.menuAddCollection), #selector(openProject(_:)), "o"))
+        fileMenu.addItem(menuItem(t(.refreshCollection), #selector(refreshProject(_:)), "r"))
         fileMenu.addItem(.separator())
-        fileMenu.addItem(menuItem("Закрыть читалку", #selector(closeReader(_:)), "w", [.command, .shift]))
-        fileMenu.addItem(withTitle: "Закрыть окно", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        fileMenu.addItem(menuItem(t(.menuCloseReader), #selector(closeReader(_:)), "w", [.command, .shift]))
+        fileMenu.addItem(withTitle: t(.closeWindow), action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
 
         let editMenuItem = NSMenuItem()
         mainMenu.addItem(editMenuItem)
-        let editMenu = NSMenu(title: "Правка")
+        let editMenu = NSMenu(title: t(.menuEdit))
         editMenuItem.submenu = editMenu
-        editMenu.addItem(withTitle: "Отменить", action: Selector(("undo:")), keyEquivalent: "z")
-        editMenu.addItem(withTitle: "Повторить", action: Selector(("redo:")), keyEquivalent: "Z")
+        editMenu.addItem(withTitle: t(.menuUndo), action: Selector(("undo:")), keyEquivalent: "z")
+        editMenu.addItem(withTitle: t(.menuRedo), action: Selector(("redo:")), keyEquivalent: "Z")
         editMenu.addItem(.separator())
-        editMenu.addItem(withTitle: "Вырезать", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
-        editMenu.addItem(withTitle: "Копировать", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
-        editMenu.addItem(withTitle: "Вставить", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
-        editMenu.addItem(withTitle: "Выбрать всё", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        editMenu.addItem(withTitle: t(.menuCut), action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        editMenu.addItem(withTitle: t(.menuCopy), action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: t(.menuPaste), action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        editMenu.addItem(withTitle: t(.menuSelectAll), action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
 
         let readingMenuItem = NSMenuItem()
         mainMenu.addItem(readingMenuItem)
-        let readingMenu = NSMenu(title: "Чтение")
+        let readingMenu = NSMenu(title: t(.menuReading))
         readingMenuItem.submenu = readingMenu
-        readingMenu.addItem(menuItem("Предыдущая страница", #selector(readingPreviousPage(_:)), ""))
-        readingMenu.addItem(menuItem("Следующая страница", #selector(readingNextPage(_:)), ""))
+        readingMenu.addItem(menuItem(t(.previousPage), #selector(readingPreviousPage(_:)), ""))
+        readingMenu.addItem(menuItem(t(.nextPage), #selector(readingNextPage(_:)), ""))
         readingMenu.addItem(.separator())
-        readingMenu.addItem(menuItem("Предыдущая глава", #selector(readingPreviousChapter(_:)), ""))
-        readingMenu.addItem(menuItem("Следующая глава", #selector(readingNextChapter(_:)), ""))
+        readingMenu.addItem(menuItem(t(.previousChapter), #selector(readingPreviousChapter(_:)), ""))
+        readingMenu.addItem(menuItem(t(.nextChapter), #selector(readingNextChapter(_:)), ""))
         readingMenu.addItem(.separator())
-        readingMenu.addItem(menuItem("Перейти к странице…", #selector(readingGoToPage(_:)), "g"))
+        readingMenu.addItem(menuItem(t(.goToPage), #selector(readingGoToPage(_:)), "g"))
 
         let viewMenuItem = NSMenuItem()
         mainMenu.addItem(viewMenuItem)
-        let viewMenu = NSMenu(title: "Вид")
+        let viewMenu = NSMenu(title: t(.menuView))
         viewMenuItem.submenu = viewMenu
-        viewMenu.addItem(menuItem("Показать/скрыть панель", #selector(toggleSidebar(_:)), "\\"))
+        viewMenu.addItem(menuItem(t(.menuToggleSidebar), #selector(toggleSidebar(_:)), "\\"))
         viewMenu.addItem(.separator())
-        viewMenu.addItem(menuItem("Увеличить", #selector(zoomIn(_:)), "="))
-        viewMenu.addItem(menuItem("Уменьшить", #selector(zoomOut(_:)), "-"))
-        viewMenu.addItem(menuItem("Фактический размер", #selector(resetZoom(_:)), "0"))
+        viewMenu.addItem(menuItem(t(.zoomIn), #selector(zoomIn(_:)), "="))
+        viewMenu.addItem(menuItem(t(.zoomOut), #selector(zoomOut(_:)), "-"))
+        viewMenu.addItem(menuItem(t(.menuActualSize), #selector(resetZoom(_:)), "0"))
         viewMenu.addItem(.separator())
-        viewMenu.addItem(menuItem("Полный экран", #selector(toggleFullScreen(_:)), "f", [.command, .control]))
+        viewMenu.addItem(menuItem(t(.fullScreen), #selector(toggleFullScreen(_:)), "f", [.command, .control]))
 
         let windowMenuItem = NSMenuItem()
         mainMenu.addItem(windowMenuItem)
-        let windowMenu = NSMenu(title: "Окно")
+        let windowMenu = NSMenu(title: t(.menuWindow))
         windowMenuItem.submenu = windowMenu
-        windowMenu.addItem(withTitle: "Свернуть", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
-        windowMenu.addItem(withTitle: "Масштаб", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
+        windowMenu.addItem(withTitle: t(.minimizeWindow), action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        windowMenu.addItem(withTitle: t(.menuWindowZoom), action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
         NSApp.windowsMenu = windowMenu
 
         let helpMenuItem = NSMenuItem()
         mainMenu.addItem(helpMenuItem)
-        let helpMenu = NSMenu(title: "Справка")
+        let helpMenu = NSMenu(title: t(.menuHelp))
         helpMenuItem.submenu = helpMenu
-        helpMenu.addItem(menuItem("Управление читалкой", #selector(readingShowHelp(_:)), "/"))
+        helpMenu.addItem(menuItem(t(.menuReaderControls), #selector(readingShowHelp(_:)), "/"))
 
         NSApp.mainMenu = mainMenu
         NSApp.helpMenu = helpMenu

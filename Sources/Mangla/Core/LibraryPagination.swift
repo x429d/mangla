@@ -20,9 +20,17 @@ enum LibraryPagination {
         return start..<min(start + pageSize, total)
     }
 
-    static func rangeLabel(total: Int, page: Int, pageSize: Int = defaultPageSize) -> String {
+    static func rangeLabel(
+        total: Int,
+        page: Int,
+        pageSize: Int = defaultPageSize,
+        localization: Localization = .current
+    ) -> String {
         let range = range(total: total, page: page, pageSize: pageSize)
-        guard !range.isEmpty else { return "0 из 0" }
-        return "\(range.lowerBound + 1)–\(range.upperBound) из \(total)"
+        guard !range.isEmpty else { return localization.text(.rangeEmpty) }
+        return localization.formatted(
+            .rangeLabel,
+            arguments: [range.lowerBound + 1, range.upperBound, total]
+        )
     }
 }

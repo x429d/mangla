@@ -214,7 +214,7 @@ final class PageContentView: CanvasSurfaceView {
         isLoading = false
         spinner.stopAnimation(nil)
         spinner.isHidden = true
-        messageLabel.stringValue = "Не удалось открыть страницу\n\(url?.lastPathComponent ?? "")"
+        messageLabel.stringValue = tf(.openPageFailed, url?.lastPathComponent ?? "")
         messageLabel.isHidden = false
     }
 

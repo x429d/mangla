@@ -23,7 +23,7 @@ struct ReaderPageEntryOverlay: View {
 
             VStack(spacing: 8) {
                 HStack(alignment: .firstTextBaseline, spacing: 9) {
-                    Text("Страница")
+                    Text(t(.page))
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(Theme.textSecondary)
 
@@ -53,7 +53,7 @@ struct ReaderPageEntryOverlay: View {
                 .contentShape(Rectangle())
                 .onTapGesture { isFocused = true }
 
-                Text("Enter — перейти · Esc — отмена")
+                Text(t(.pageEntryHint))
                     .font(.system(size: 9.5, weight: .medium))
                     .foregroundStyle(Theme.textTertiary)
             }

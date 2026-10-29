@@ -9,9 +9,9 @@ enum ImageDecodingError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .cannotOpen(let url): "Не удалось открыть \(url.lastPathComponent)"
-        case .cannotDecode(let url): "Не удалось декодировать \(url.lastPathComponent)"
-        case .cannotReadSize(let url): "Не удалось прочитать размер \(url.lastPathComponent)"
+        case .cannotOpen(let url): tf(.decodeCannotOpen, url.lastPathComponent)
+        case .cannotDecode(let url): tf(.decodeCannotDecode, url.lastPathComponent)
+        case .cannotReadSize(let url): tf(.decodeCannotReadSize, url.lastPathComponent)
         }
     }
 }

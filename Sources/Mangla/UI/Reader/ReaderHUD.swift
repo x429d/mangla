@@ -98,17 +98,17 @@ struct ReaderSidebar: View {
 
             Spacer().frame(height: 8)
 
-            controlRow(label: "Вписать") { fitMenu }
+            controlRow(label: t(.fit)) { fitMenu }
 
             Spacer().frame(height: 8)
 
-            controlRow(label: "Направление") { directionPicker }
+            controlRow(label: t(.direction)) { directionPicker }
                 .disabled(session.layoutMode == .webtoon)
                 .opacity(session.layoutMode == .webtoon ? 0.38 : 1)
 
             Spacer().frame(height: 8)
 
-            controlRow(label: "Масштаб") { zoomControls }
+            controlRow(label: t(.zoom)) { zoomControls }
 
             Spacer(minLength: 16)
 
@@ -129,7 +129,7 @@ struct ReaderSidebar: View {
             HStack(spacing: 6) {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 9, weight: .bold))
-                Text("Библиотека")
+                Text(t(.library))
                     .font(.system(size: 10.5, weight: .semibold))
                 Spacer(minLength: 4)
                 Text("Esc")
@@ -147,7 +147,7 @@ struct ReaderSidebar: View {
             .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)
-        .help("Вернуться в библиотеку (Esc)")
+        .help(t(.backToLibraryHelp))
     }
 
     private var titleBlock: some View {
@@ -185,7 +185,7 @@ struct ReaderSidebar: View {
 
     private var layoutSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            sectionLabel("Режим")
+            sectionLabel(t(.mode))
 
             HStack(spacing: 2) {
                 ForEach(LayoutMode.allCases) { mode in
@@ -252,7 +252,7 @@ struct ReaderSidebar: View {
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
-        .help("Режим вписывания (H / W / O)")
+        .help(t(.fitModeHelp))
     }
 
     private var directionPicker: some View {
@@ -292,7 +292,7 @@ struct ReaderSidebar: View {
 
     private var zoomControls: some View {
         HStack(spacing: 2) {
-            HUDIconButton(symbol: "minus", help: "Уменьшить (⌘−)", size: 24) {
+            HUDIconButton(symbol: "minus", help: t(.zoomOutHelp), size: 24) {
                 session.bridge.zoomOut()
             }
 
@@ -307,9 +307,9 @@ struct ReaderSidebar: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("Сбросить масштаб (0 или ⌘0)")
+            .help(t(.resetZoomHelp))
 
-            HUDIconButton(symbol: "plus", help: "Увеличить (⌘+)", size: 24) {
+            HUDIconButton(symbol: "plus", help: t(.zoomInHelp), size: 24) {
                 session.bridge.zoomIn()
             }
         }
@@ -325,7 +325,7 @@ struct ReaderSidebar: View {
     private var pageSection: some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 8) {
-                sectionLabel("Страница")
+                sectionLabel(t(.page))
 
                 Spacer(minLength: 4)
 
@@ -344,7 +344,7 @@ struct ReaderSidebar: View {
                         .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                .help("Перейти к странице (G)")
+                .help(t(.goToPageHelp))
             }
 
             PageScrubber(
@@ -357,7 +357,7 @@ struct ReaderSidebar: View {
             HStack(spacing: 6) {
                 HUDIconButton(
                     symbol: "backward.end.fill",
-                    help: "Предыдущая глава (⌘← или [)"
+                    help: t(.previousChapterHelp)
                 ) {
                     session.previousChapter()
                 }
@@ -365,8 +365,8 @@ struct ReaderSidebar: View {
                 HUDIconButton(
                     symbol: "chevron.left",
                     help: session.direction == .rtl
-                        ? "Следующая страница (←)"
-                        : "Предыдущая страница (←)"
+                        ? t(.nextPageLeftHelp)
+                        : t(.previousPageLeftHelp)
                 ) {
                     if session.direction == .rtl {
                         session.next()
@@ -380,8 +380,8 @@ struct ReaderSidebar: View {
                 HUDIconButton(
                     symbol: "chevron.right",
                     help: session.direction == .rtl
-                        ? "Предыдущая страница (→)"
-                        : "Следующая страница (→)"
+                        ? t(.previousPageRightHelp)
+                        : t(.nextPageRightHelp)
                 ) {
                     if session.direction == .rtl {
                         session.previous()
@@ -392,7 +392,7 @@ struct ReaderSidebar: View {
 
                 HUDIconButton(
                     symbol: "forward.end.fill",
-                    help: "Следующая глава (⌘→ или ])"
+                    help: t(.nextChapterHelp)
                 ) {
                     session.nextChapter()
                 }
@@ -405,14 +405,14 @@ struct ReaderSidebar: View {
         HStack(spacing: 6) {
             HUDIconButton(
                 symbol: "questionmark",
-                help: "Управление и горячие клавиши (?)"
+                help: t(.controlsHelp)
             ) {
                 session.showHelp()
             }
 
             HUDIconButton(
                 symbol: "arrow.up.left.and.arrow.down.right",
-                help: "Полный экран (F)"
+                help: t(.fullScreenHelp)
             ) {
                 WindowChrome.toggleFullScreen()
             }

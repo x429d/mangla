@@ -404,7 +404,7 @@ final class ReadingSession {
 
     func nextChapter() {
         guard let target = model?.nextReadingTarget(afterMangaID: manga.id, chapterID: chapter.id) else {
-            showToast("Это последняя глава в коллекции")
+            showToast(t(.toastLastChapter))
             return
         }
         switchTo(manga: target.manga, chapter: target.chapter, startPage: 0)
@@ -412,7 +412,7 @@ final class ReadingSession {
 
     func previousChapter() {
         guard let target = model?.previousReadingTarget(afterMangaID: manga.id, chapterID: chapter.id) else {
-            showToast("Это первая глава в коллекции")
+            showToast(t(.toastFirstChapter))
             return
         }
         switchTo(
@@ -438,7 +438,7 @@ final class ReadingSession {
         let subtitle = newManga.id == previousMangaID
             ? newChapter.title
             : "\(newManga.title) · \(newChapter.title)"
-        showToast("Дальше: \(subtitle)")
+        showToast(tf(.toastNextUp, subtitle))
         model?.noteOpened(manga: newManga, chapter: newChapter)
     }
 
@@ -501,7 +501,7 @@ final class ReadingSession {
         bridge.focus()
 
         guard let index = ReaderInteraction.pageIndex(from: text, pageCount: totalPages) else {
-            showToast("Введите страницу от 1 до \(totalPages)")
+            showToast(tf(.toastInvalidPage, totalPages))
             return
         }
         goToPage(index)

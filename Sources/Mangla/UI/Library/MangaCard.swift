@@ -45,20 +45,20 @@ struct MangaGridCard: View {
         .scaleEffect(hovering ? 1.022 : 1)
         .animation(Theme.spring, value: hovering)
         .contextMenu {
-            Button("Читать") { onOpen() }
-            Button("Начать сначала") { onRestart() }
+            Button(t(.read)) { onOpen() }
+            Button(t(.restart)) { onRestart() }
             if !manga.chapters.isEmpty {
-                Menu("Главы") {
+                Menu(t(.chaptersMenu)) {
                     ForEach(manga.chapters.prefix(40)) { chapter in
                         Button(chapter.title) { onOpenChapter(chapter) }
                     }
                 }
             }
             Divider()
-            Button(status == .completed ? "Отметить непрочитанным" : "Отметить прочитанным") {
+            Button(status == .completed ? t(.markUnread) : t(.markRead)) {
                 onToggleRead()
             }
-            Button("Показать в Finder") { onReveal() }
+            Button(t(.revealInFinder)) { onReveal() }
         }
     }
 
@@ -110,7 +110,7 @@ struct MangaGridCard: View {
                         HStack(spacing: 6) {
                             Image(systemName: "book.fill")
                                 .font(.system(size: 10, weight: .semibold))
-                            Text(status == .reading ? "Продолжить" : "Читать")
+                            Text(status == .reading ? t(.continueAction) : t(.read))
                                 .font(.system(size: 11, weight: .semibold))
                         }
                         .foregroundStyle(.white)
@@ -174,7 +174,7 @@ struct ContinueBanner: View {
                     HStack(spacing: 6) {
                         Image(systemName: "bookmark.fill")
                             .font(.system(size: 8, weight: .bold))
-                        Text("ПРОДОЛЖИТЬ ЧТЕНИЕ")
+                        Text(t(.continueHeader))
                             .font(.system(size: 9, weight: .bold, design: .rounded))
                             .tracking(1.4)
                     }
@@ -186,7 +186,7 @@ struct ContinueBanner: View {
                         .lineLimit(1)
                         .truncationMode(.middle)
 
-                    Text("\(chapter.title)  ·  стр. \(pageIndex + 1) из \(chapter.pageCount)")
+                    Text(tf(.continueMeta, chapter.title, pageIndex + 1, chapter.pageCount))
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(Theme.textSecondary)
                         .lineLimit(1)

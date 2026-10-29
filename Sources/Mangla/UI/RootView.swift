@@ -53,13 +53,13 @@ struct RootView: View {
         }
         .animation(.smooth(duration: 0.28), value: isReading)
         .alert(
-            "Ошибка",
+            t(.errorTitle),
             isPresented: Binding(
                 get: { model.errorMessage != nil },
                 set: { if !$0 { model.clearError() } }
             )
         ) {
-            Button("Хорошо", role: .cancel) { model.clearError() }
+            Button(t(.ok), role: .cancel) { model.clearError() }
         } message: {
             Text(model.errorMessage ?? "")
         }
