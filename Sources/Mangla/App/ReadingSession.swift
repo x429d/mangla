@@ -9,6 +9,7 @@ protocol ReaderCanvasControlling: AnyObject {
     func resetZoom(animated: Bool)
     func zoomIn()
     func zoomOut()
+    func scrollScreen(forward: Bool) -> Bool
     func focusCanvas()
 }
 
@@ -32,6 +33,11 @@ final class ReaderBridge {
     func resetZoom(animated: Bool) { canvas?.resetZoom(animated: animated) }
     func zoomIn() { canvas?.zoomIn() }
     func zoomOut() { canvas?.zoomOut() }
+    /// Returns true when the canvas consumed the scroll; false means it is at
+    /// an edge and the caller may turn the page instead.
+    func scrollScreen(forward: Bool) -> Bool {
+        canvas?.scrollScreen(forward: forward) ?? false
+    }
     func focus() { canvas?.focusCanvas() }
 }
 
@@ -40,19 +46,23 @@ final class ReaderBridge {
 @MainActor
 @Observable
 final class ReaderChromeState {
-    /// The two HUD panels are independent: the top one is tied to the top
-    /// screen edge, the bottom one to the bottom edge.
-    var isTopVisible = false
+    /// The two panes are independent: the sidebar is tied to the left screen
+    /// edge, the page scrubber to the bottom edge.
+    var isSideVisible = false
     var isBottomVisible = false
 
-    @ObservationIgnored private var isTopHovered = false
+    @ObservationIgnored private var isSideHovered = false
     @ObservationIgnored private var isBottomHovered = false
-    @ObservationIgnored private var pointerNearTop = false
+    @ObservationIgnored private var pointerNearSide = false
     @ObservationIgnored private var pointerNearBottom = false
-    @ObservationIgnored private var topHideTask: Task<Void, Never>?
+    @ObservationIgnored private var sideHideTask: Task<Void, Never>?
     @ObservationIgnored private var bottomHideTask: Task<Void, Never>?
 
-    private let topZone: CGFloat = 96
+    /// A narrow strip reveals the sidebar so it does not compete with the
+    /// left page-turn click zone. Once open, the whole panel plus a margin
+    /// keeps it alive.
+    private let sideRevealZone: CGFloat = 22
+    private let sideKeepAliveZone: CGFloat = 272
     private let bottomZone: CGFloat = 118
     private let hideDelay: Duration
 
@@ -60,20 +70,21 @@ final class ReaderChromeState {
         self.hideDelay = hideDelay
     }
 
-    /// Called from the canvas on every mouse move. `yFromTop` is measured in
-    /// window points from the very top edge.
-    func updatePointer(yFromTop: CGFloat, height: CGFloat) {
+    /// Called from the canvas on every mouse move. `xFromLeft` and `yFromTop`
+    /// are measured in view points from the very left/top edges.
+    func updatePointer(xFromLeft: CGFloat, yFromTop: CGFloat, height: CGFloat) {
         guard height > 1 else { return }
 
-        let nearTop = yFromTop <= topZone
+        let sideLimit = isSideVisible ? sideKeepAliveZone : sideRevealZone
+        let nearSide = xFromLeft <= sideLimit
         let nearBottom = yFromTop >= height - bottomZone
 
-        if nearTop != pointerNearTop {
-            pointerNearTop = nearTop
-            if nearTop {
-                revealTop()
+        if nearSide != pointerNearSide {
+            pointerNearSide = nearSide
+            if nearSide {
+                revealSide()
             } else {
-                scheduleTopHide()
+                scheduleSideHide()
             }
         }
 
@@ -88,19 +99,19 @@ final class ReaderChromeState {
     }
 
     func pointerExited() {
-        pointerNearTop = false
+        pointerNearSide = false
         pointerNearBottom = false
-        scheduleTopHide()
+        scheduleSideHide()
         scheduleBottomHide()
     }
 
-    func setTopHovered(_ hovering: Bool) {
-        guard hovering != isTopHovered else { return }
-        isTopHovered = hovering
+    func setSideHovered(_ hovering: Bool) {
+        guard hovering != isSideHovered else { return }
+        isSideHovered = hovering
         if hovering {
-            revealTop()
-        } else if !pointerNearTop {
-            scheduleTopHide()
+            revealSide()
+        } else if !pointerNearSide {
+            scheduleSideHide()
         }
     }
 
@@ -115,22 +126,22 @@ final class ReaderChromeState {
     }
 
     func hideAll() {
-        topHideTask?.cancel()
+        sideHideTask?.cancel()
         bottomHideTask?.cancel()
-        topHideTask = nil
+        sideHideTask = nil
         bottomHideTask = nil
-        pointerNearTop = false
+        pointerNearSide = false
         pointerNearBottom = false
-        isTopHovered = false
+        isSideHovered = false
         isBottomHovered = false
-        isTopVisible = false
+        isSideVisible = false
         isBottomVisible = false
     }
 
-    private func revealTop() {
-        topHideTask?.cancel()
-        topHideTask = nil
-        isTopVisible = true
+    private func revealSide() {
+        sideHideTask?.cancel()
+        sideHideTask = nil
+        isSideVisible = true
     }
 
     private func revealBottom() {
@@ -139,14 +150,14 @@ final class ReaderChromeState {
         isBottomVisible = true
     }
 
-    private func scheduleTopHide() {
-        topHideTask?.cancel()
+    private func scheduleSideHide() {
+        sideHideTask?.cancel()
         let delay = hideDelay
-        topHideTask = Task { [weak self] in
+        sideHideTask = Task { [weak self] in
             try? await Task.sleep(for: delay)
             guard !Task.isCancelled, let self else { return }
-            guard !self.pointerNearTop, !self.isTopHovered else { return }
-            self.isTopVisible = false
+            guard !self.pointerNearSide, !self.isSideHovered else { return }
+            self.isSideVisible = false
         }
     }
 
@@ -194,6 +205,11 @@ final class ReadingSession {
     var zoom: CGFloat = 1
     var toast: String?
     var seekRequest = WebtoonSeekRequest(id: 0, page: 0)
+
+    // Control-layer overlays
+    private(set) var isHelpVisible = false
+    private(set) var isPageEntryVisible = false
+    var pageEntryText = ""
 
     let bridge = ReaderBridge()
     let chrome = ReaderChromeState()
@@ -250,6 +266,11 @@ final class ReadingSession {
             storedDirection = newValue
             ReaderPreferences.direction = newValue
         }
+    }
+
+    func toggleDirection() {
+        guard storedLayoutMode != .webtoon else { return }
+        direction = storedDirection == .rtl ? .ltr : .rtl
     }
 
     // MARK: Derived state
@@ -487,6 +508,58 @@ final class ReadingSession {
         bridge.resetZoom()
     }
 
+    // MARK: Overlays
+
+    func showHelp() {
+        isPageEntryVisible = false
+        pageEntryText = ""
+        isHelpVisible = true
+        chrome.hideAll()
+    }
+
+    func hideHelp() {
+        guard isHelpVisible else { return }
+        isHelpVisible = false
+        bridge.focus()
+    }
+
+    func toggleHelp() {
+        if isHelpVisible {
+            hideHelp()
+        } else {
+            showHelp()
+        }
+    }
+
+    func beginPageEntry() {
+        guard totalPages > 0 else { return }
+        isHelpVisible = false
+        isPageEntryVisible = true
+        pageEntryText = ""
+        chrome.hideAll()
+    }
+
+    func cancelPageEntry() {
+        guard isPageEntryVisible else { return }
+        isPageEntryVisible = false
+        pageEntryText = ""
+        bridge.focus()
+    }
+
+    func commitPageEntry() {
+        guard isPageEntryVisible else { return }
+        let text = pageEntryText
+        isPageEntryVisible = false
+        pageEntryText = ""
+        bridge.focus()
+
+        guard let index = ReaderInteraction.pageIndex(from: text, pageCount: totalPages) else {
+            showToast("Введите страницу от 1 до \(totalPages)")
+            return
+        }
+        goToPage(index)
+    }
+
     // MARK: Progress
 
     func recordProgress(force: Bool = false) {
@@ -507,6 +580,9 @@ final class ReadingSession {
             recordProgress(force: true)
         }
         chrome.hideAll()
+        isHelpVisible = false
+        isPageEntryVisible = false
+        pageEntryText = ""
         toastTask?.cancel()
     }
 

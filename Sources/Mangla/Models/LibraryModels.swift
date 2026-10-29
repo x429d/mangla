@@ -155,6 +155,14 @@ enum LayoutMode: String, CaseIterable, Identifiable, Sendable {
         case .webtoon: "rectangle.stack"
         }
     }
+
+    var shortcutKey: String {
+        switch self {
+        case .single: "1"
+        case .spread: "2"
+        case .webtoon: "3"
+        }
+    }
 }
 
 enum FitMode: String, CaseIterable, Identifiable, Sendable {
@@ -185,6 +193,14 @@ enum FitMode: String, CaseIterable, Identifiable, Sendable {
         case .fitHeight: "arrow.up.and.down"
         case .fitWidth: "arrow.left.and.right"
         case .original: "1.square"
+        }
+    }
+
+    var shortcutKey: String {
+        switch self {
+        case .fitHeight: "H"
+        case .fitWidth: "W"
+        case .original: "O"
         }
     }
 }

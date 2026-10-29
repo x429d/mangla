@@ -41,8 +41,5 @@ struct RootView: View {
         } message: {
             Text(model.errorMessage ?? "")
         }
-        .onAppear {
-            model.bridge.focus()
-        }
     }
 }

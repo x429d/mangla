@@ -38,7 +38,6 @@ final class AppModel {
     var columnVisibility: NavigationSplitViewVisibility = .all
 
     // Reader
-    let bridge = ReaderBridge()
     var reading: ReadingSession?
 
     // Status

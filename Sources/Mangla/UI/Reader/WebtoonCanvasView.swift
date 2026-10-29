@@ -35,6 +35,7 @@ struct WebtoonCanvasRepresentable: NSViewRepresentable {
         private let strip = CanvasSurfaceView()
         private var pageViews: [PageContentView] = []
         private var loadTasks: [Int: Task<Void, Never>] = [:]
+        private lazy var contextMenuController = ReaderContextMenuController(session: session)
 
         private var currentURLs: [URL] = []
         private var pageHeights: [CGFloat] = []
@@ -59,20 +60,31 @@ struct WebtoonCanvasRepresentable: NSViewRepresentable {
             container.autoresizingMask = []
             container.onClick = { [weak self] event in self?.handleClick(event) }
             container.onPointerMove = { [weak self] event in self?.pointerMoved(event) }
+            container.onPageStep = { [weak self] forward in self?.handlePageStep(forward) }
+            container.onPan = { [weak self] dx, dy in self?.pan(dx: dx, dy: dy) }
+            container.onContextMenu = { [weak self] _ in self?.contextMenuController.makeMenu() }
 
             strip.autoresizingMask = []
             strip.onClick = { [weak self] event in self?.handleClick(event) }
             strip.onPointerMove = { [weak self] event in self?.pointerMoved(event) }
+            strip.onPageStep = { [weak self] forward in self?.handlePageStep(forward) }
+            strip.onPan = { [weak self] dx, dy in self?.pan(dx: dx, dy: dy) }
+            strip.onContextMenu = { [weak self] _ in self?.contextMenuController.makeMenu() }
             container.addSubview(strip)
 
             scrollView.hasVerticalScroller = true
             scrollView.autohidesScrollers = true
             scrollView.scrollerStyle = .overlay
             scrollView.pageSwipeEnabled = false
+            scrollView.pageWheelEnabled = false
             scrollView.documentView = container
 
             scrollView.onZoomChanged = { [weak self] value in
                 self?.session.setZoom(value)
+                self?.syncPanState()
+            }
+            scrollView.onPageStep = { [weak self] forward in
+                self?.handlePageStep(forward)
             }
             scrollView.onPointerMove = { [weak self] event in
                 self?.pointerMoved(event)
@@ -83,6 +95,7 @@ struct WebtoonCanvasRepresentable: NSViewRepresentable {
             scrollView.onSmartZoom = { [weak self] event in
                 self?.handleSmartZoom(event)
             }
+            scrollView.onContextMenu = { [weak self] _ in self?.contextMenuController.makeMenu() }
 
             scrollView.contentView.postsBoundsChangedNotifications = true
             NotificationCenter.default.addObserver(
@@ -143,6 +156,8 @@ struct WebtoonCanvasRepresentable: NSViewRepresentable {
             }
 
             lastWidth = width
+            scrollView?.layoutSubtreeIfNeeded()
+            syncPanState()
 
             if !didInitialScroll {
                 didInitialScroll = true
@@ -174,6 +189,10 @@ struct WebtoonCanvasRepresentable: NSViewRepresentable {
                 let view = PageContentView()
                 view.onClick = { [weak self] event in self?.handleClick(event) }
                 view.onPointerMove = { [weak self] event in self?.pointerMoved(event) }
+                view.onPageStep = { [weak self] forward in self?.handlePageStep(forward) }
+                view.onPan = { [weak self] dx, dy in self?.pan(dx: dx, dy: dy) }
+                view.onContextMenu = { [weak self] _ in self?.contextMenuController.makeMenu() }
+                view.isPanEnabled = scrollView?.canPan ?? false
                 return view
             }
             for view in pageViews { strip.addSubview(view) }
@@ -302,6 +321,9 @@ struct WebtoonCanvasRepresentable: NSViewRepresentable {
         // MARK: - Interaction
 
         private func handleClick(_ event: NSEvent) {
+            guard !session.isLoadingChapter,
+                  !session.isHelpVisible,
+                  !session.isPageEntryVisible else { return }
             scrollView?.window?.makeFirstResponder(scrollView)
             guard let scrollView else { return }
 
@@ -334,11 +356,17 @@ struct WebtoonCanvasRepresentable: NSViewRepresentable {
 
             let point = scrollView.convert(event.locationInWindow, from: nil)
             let yFromTop = height - point.y
-            session.chrome.updatePointer(yFromTop: yFromTop, height: height)
+            session.chrome.updatePointer(
+                xFromLeft: point.x,
+                yFromTop: yFromTop,
+                height: height
+            )
 
-            // Keep the normal arrow over the floating HUD panels; show the
+            // Keep the normal arrow over the floating chrome; show the
             // navigation chevron only over the actual page.
-            let overTopBar = session.chrome.isTopVisible && yFromTop <= 34
+            let overSidebar = session.chrome.isSideVisible
+                && point.x <= ReaderSidebarLayout.hitWidth
+                && yFromTop <= ReaderSidebarLayout.maxY
             let bottomWidth = min(1000, max(0, width - 32))
             let bottomMinX = (width - bottomWidth) / 2
             let overBottomBar = session.chrome.isBottomVisible
@@ -346,11 +374,13 @@ struct WebtoonCanvasRepresentable: NSViewRepresentable {
                 && point.x >= bottomMinX
                 && point.x <= bottomMinX + bottomWidth
 
-            if overTopBar || overBottomBar {
-                ReaderCursors.apply(.middle)
+            if overSidebar || overBottomBar {
+                ReaderCursors.apply(.arrow)
             } else {
                 let zone = ReaderInteraction.sideZone(x: point.x, width: width)
-                ReaderCursors.apply(zone)
+                ReaderCursors.apply(
+                    ReaderCursors.style(for: zone, canPan: scrollView.canPan)
+                )
             }
         }
 
@@ -359,6 +389,40 @@ struct WebtoonCanvasRepresentable: NSViewRepresentable {
             let point = scrollView.contentView.convert(event.locationInWindow, from: nil)
             let target: CGFloat = scrollView.magnification > 1.02 ? 1.0 : 2.5
             scrollView.zoom(to: target, at: point, animated: true)
+        }
+
+        private func handlePageStep(_ forward: Bool) {
+            guard !session.isLoadingChapter,
+                  !session.isHelpVisible,
+                  !session.isPageEntryVisible else { return }
+            scrollView?.window?.makeFirstResponder(scrollView)
+            if forward {
+                session.next()
+            } else {
+                session.previous()
+            }
+        }
+
+        private func pan(dx: CGFloat, dy: CGFloat) {
+            guard let scrollView, let documentView = scrollView.documentView else { return }
+            let visible = scrollView.documentVisibleRect
+            let maxX = max(0, documentView.bounds.width - visible.width)
+            let maxY = max(0, documentView.bounds.height - visible.height)
+
+            var origin = visible.origin
+            origin.x = min(max(origin.x - dx, 0), maxX)
+            origin.y = min(max(origin.y - dy, 0), maxY)
+            scrollView.contentView.scroll(to: origin)
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+        }
+
+        private func syncPanState() {
+            guard let scrollView else { return }
+            let canPan = scrollView.canPan
+            let surfaces: [CanvasSurfaceView] = [container, strip] + pageViews
+            for view in surfaces {
+                view.isPanEnabled = canPan
+            }
         }
 
         // MARK: - ReaderCanvasControlling
@@ -374,6 +438,31 @@ struct WebtoonCanvasRepresentable: NSViewRepresentable {
 
         func zoomOut() {
             scrollView?.zoomStep(by: 1 / 1.4)
+        }
+
+        func scrollScreen(forward: Bool) -> Bool {
+            guard let scrollView else { return false }
+            let visible = scrollView.documentVisibleRect
+            let documentHeight = scrollView.documentView?.bounds.height ?? 0
+            let maxY = max(0, documentHeight - visible.height)
+
+            if forward {
+                guard visible.minY < maxY - 1 else { return false }
+                let target = min(maxY, visible.minY + visible.height * 0.86)
+                scroll(toY: target, scrollView: scrollView)
+                return true
+            }
+
+            guard visible.minY > 1 else { return false }
+            let target = max(0, visible.minY - visible.height * 0.86)
+            scroll(toY: target, scrollView: scrollView)
+            return true
+        }
+
+        private func scroll(toY y: CGFloat, scrollView: ReaderScrollView) {
+            scrollView.contentView.scroll(to: NSPoint(x: 0, y: y))
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+            updateVisiblePage(force: true)
         }
 
         func focusCanvas() {

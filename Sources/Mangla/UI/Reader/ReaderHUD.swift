@@ -14,10 +14,14 @@ struct HUDChrome: ViewModifier {
                     RoundedRectangle(cornerRadius: corner, style: .continuous)
                         .fill(Color.black.opacity(0.30))
                 }
+                // Empty chrome should not steal page-turn clicks from the
+                // canvas below; only the controls themselves are interactive.
+                .allowsHitTesting(false)
             }
             .overlay {
                 RoundedRectangle(cornerRadius: corner, style: .continuous)
                     .strokeBorder(Color.white.opacity(0.11), lineWidth: 1)
+                    .allowsHitTesting(false)
             }
             .shadow(color: .black.opacity(0.5), radius: 22, y: 10)
     }
@@ -27,114 +31,151 @@ struct HUDIconButton: View {
     let symbol: String
     var help: String = ""
     var active = false
+    var size: CGFloat = 28
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(size: size * 0.39, weight: .semibold))
                 .foregroundStyle(active ? Theme.textPrimary : Theme.textSecondary)
-                .frame(width: 28, height: 28)
+                .frame(width: size, height: size)
                 .background(
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    RoundedRectangle(cornerRadius: size * 0.25, style: .continuous)
                         .fill(active ? Color.white.opacity(0.12) : Color.white.opacity(0.045))
                 )
-                .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: size * 0.25, style: .continuous))
         }
         .buttonStyle(.plain)
         .help(help)
     }
 }
 
-// MARK: - Top HUD
+// MARK: - Left sidebar
 
-struct ReaderTopHUD: View {
+/// Geometry shared with the canvases so the cursor can become a normal arrow
+/// over the open panel without measuring SwiftUI frames on every mouse move.
+enum ReaderSidebarLayout {
+    static let width: CGFloat = 228
+    static let leading: CGFloat = 14
+    static let height: CGFloat = 358
+    /// The panel sits below the native window buttons when windowed.
+    static let windowTop: CGFloat = 44
+    static let fullScreenTop: CGFloat = 14
+    static let hitWidth: CGFloat = leading + width
+    static let maxY: CGFloat = 414
+}
+
+struct ReaderSidebar: View {
     let session: ReadingSession
-    /// Space for the native window buttons when the bar is embedded into the
-    /// titlebar area. Zero in fullscreen, where macOS hides the buttons.
-    let leadingInset: CGFloat
+    /// Top padding that clears the native window buttons when they are visible.
+    let topInset: CGFloat
 
     var body: some View {
-        HStack(spacing: 10) {
-            Button {
-                session.dismiss()
-            } label: {
-                HStack(spacing: 5) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 9, weight: .bold))
-                    Text("Библиотека")
-                        .font(.system(size: 10.5, weight: .semibold))
-                }
-                .foregroundStyle(Theme.textSecondary)
-                .padding(.horizontal, 8)
-                .frame(height: 24)
-                .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color.white.opacity(0.045))
-                )
-            }
-            .buttonStyle(.plain)
-            .help("Вернуться в библиотеку (Esc)")
-
-            Rectangle()
-                .fill(Color.white.opacity(0.10))
-                .frame(width: 1, height: 16)
-
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(session.title)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Theme.textPrimary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .layoutPriority(1)
-
-                if let chapterSuffix {
-                    Text("·")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(Theme.textTertiary.opacity(0.7))
-                    Text(chapterSuffix)
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(Theme.textTertiary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+        panel
+            .modifier(HUDChrome(corner: 16))
+            .padding(.leading, ReaderSidebarLayout.leading)
+            .padding(.top, topInset)
+            .opacity(session.chrome.isSideVisible ? 1 : 0)
+            .offset(x: session.chrome.isSideVisible ? 0 : -18)
+            .animation(.smooth(duration: 0.22), value: session.chrome.isSideVisible)
+            .allowsHitTesting(session.chrome.isSideVisible)
+            .onHover { hovering in
+                session.chrome.setSideHovered(hovering)
+                if hovering {
+                    NSCursor.arrow.set()
                 }
             }
-            .frame(maxWidth: 360, alignment: .leading)
-
-            Spacer(minLength: 8)
-
-            layoutPicker
-            fitMenu
-                .disabled(session.layoutMode == .webtoon)
-                .opacity(session.layoutMode == .webtoon ? 0.38 : 1)
-            directionButton
-                .disabled(session.layoutMode == .webtoon)
-                .opacity(session.layoutMode == .webtoon ? 0.38 : 1)
-            zoomButton
-            HUDIconButton(
-                symbol: "arrow.up.left.and.arrow.down.right",
-                help: "Полный экран (F)"
-            ) {
-                WindowChrome.toggleFullScreen()
-            }
-        }
-        .padding(.horizontal, 10)
-        .padding(.leading, leadingInset)
-        .modifier(HUDChrome(corner: 14))
-        .opacity(session.chrome.isTopVisible ? 1 : 0)
-        .offset(y: session.chrome.isTopVisible ? 0 : -12)
-        .animation(.smooth(duration: 0.22), value: session.chrome.isTopVisible)
-        .allowsHitTesting(session.chrome.isTopVisible)
-        .onHover { hovering in
-            session.chrome.setTopHovered(hovering)
-            if hovering {
-                NSCursor.arrow.set()
-            }
-        }
     }
 
-    /// Chapter folders often repeat the manga name; avoid showing it twice on
-    /// the single-line top bar.
+    private var panel: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            backButton
+
+            divider
+
+            titleBlock
+
+            divider
+
+            layoutSection
+
+            Spacer().frame(height: 8)
+
+            controlRow(label: "Вписать") { fitMenu }
+
+            Spacer().frame(height: 8)
+
+            controlRow(label: "Направление") { directionPicker }
+                .disabled(session.layoutMode == .webtoon)
+                .opacity(session.layoutMode == .webtoon ? 0.38 : 1)
+
+            Spacer().frame(height: 8)
+
+            controlRow(label: "Масштаб") { zoomControls }
+
+            divider
+
+            footer
+        }
+        .padding(12)
+        .frame(width: ReaderSidebarLayout.width, alignment: .leading)
+        .frame(height: ReaderSidebarLayout.height, alignment: .topLeading)
+    }
+
+    // MARK: Header
+
+    private var backButton: some View {
+        Button {
+            session.dismiss()
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 9, weight: .bold))
+                Text("Библиотека")
+                    .font(.system(size: 10.5, weight: .semibold))
+                Spacer(minLength: 4)
+                Text("Esc")
+                    .font(.system(size: 8.5, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(Theme.textTertiary)
+            }
+            .foregroundStyle(Theme.textSecondary)
+            .padding(.horizontal, 9)
+            .frame(maxWidth: .infinity)
+            .frame(height: 28)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.white.opacity(0.05))
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .help("Вернуться в библиотеку (Esc)")
+    }
+
+    private var titleBlock: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(session.title)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Theme.textPrimary)
+                .lineLimit(2)
+                .truncationMode(.middle)
+
+            if let chapterSuffix {
+                Text(chapterSuffix)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(Theme.textTertiary)
+                    .lineLimit(2)
+                    .truncationMode(.middle)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: 62, alignment: .top)
+    }
+
+    /// Chapter folders often repeat the manga name; avoid showing it twice.
     private var chapterSuffix: String? {
         let chapter = session.chapterTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         let title = session.title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -143,33 +184,44 @@ struct ReaderTopHUD: View {
         return chapter
     }
 
-    private var layoutPicker: some View {
-        HStack(spacing: 2) {
-            ForEach(LayoutMode.allCases) { mode in
-                Button {
-                    session.layoutMode = mode
-                } label: {
-                    Image(systemName: mode.symbol)
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(
-                            session.layoutMode == mode ? Theme.textPrimary : Theme.textTertiary
-                        )
-                        .frame(width: 24, height: 24)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(session.layoutMode == mode ? Color.white.opacity(0.13) : .clear)
-                        )
-                        .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+    // MARK: Controls
+
+    private var layoutSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            sectionLabel("Режим")
+
+            HStack(spacing: 2) {
+                ForEach(LayoutMode.allCases) { mode in
+                    Button {
+                        session.layoutMode = mode
+                    } label: {
+                        Image(systemName: mode.symbol)
+                            .font(.system(size: 10.5, weight: .semibold))
+                            .foregroundStyle(
+                                session.layoutMode == mode ? Theme.textPrimary : Theme.textTertiary
+                            )
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 24)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(
+                                        session.layoutMode == mode
+                                            ? Color.white.opacity(0.13)
+                                            : .clear
+                                    )
+                            )
+                            .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .help("\(mode.title) (\(mode.shortcutKey))")
                 }
-                .buttonStyle(.plain)
-                .help(mode.title)
             }
+            .padding(2)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.black.opacity(0.18))
+            )
         }
-        .padding(2)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.black.opacity(0.18))
-        )
     }
 
     private var fitMenu: some View {
@@ -186,14 +238,16 @@ struct ReaderTopHUD: View {
                 Image(systemName: session.fitMode.symbol)
                     .font(.system(size: 9, weight: .semibold))
                 Text(session.fitMode.shortTitle)
-                    .font(.system(size: 9.5, weight: .semibold))
+                    .font(.system(size: 10, weight: .semibold))
+                Spacer(minLength: 4)
                 Image(systemName: "chevron.down")
                     .font(.system(size: 7, weight: .bold))
                     .foregroundStyle(Theme.textTertiary)
             }
             .foregroundStyle(Theme.textSecondary)
             .padding(.horizontal, 8)
-            .frame(height: 24)
+            .frame(maxWidth: .infinity)
+            .frame(height: 28)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(Color.white.opacity(0.045))
@@ -201,43 +255,120 @@ struct ReaderTopHUD: View {
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
-        .fixedSize()
-        .help("Режим вписывания")
+        .help("Режим вписывания (H / W / O)")
     }
 
-    private var directionButton: some View {
-        Button {
-            session.direction = session.direction == .rtl ? .ltr : .rtl
-        } label: {
-            Text(session.direction.shortTitle)
-                .font(.system(size: 9, weight: .bold, design: .monospaced))
-                .tracking(0.4)
-                .foregroundStyle(Theme.textSecondary)
-                .frame(width: 34, height: 24)
-                .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color.white.opacity(0.045))
-                )
+    private var directionPicker: some View {
+        HStack(spacing: 2) {
+            ForEach(ReadingDirection.allCases) { direction in
+                Button {
+                    session.direction = direction
+                } label: {
+                    Text(direction.shortTitle)
+                        .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                        .tracking(0.4)
+                        .foregroundStyle(
+                            session.direction == direction ? Theme.textPrimary : Theme.textTertiary
+                        )
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 24)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(
+                                    session.direction == direction
+                                        ? Color.white.opacity(0.13)
+                                        : .clear
+                                )
+                        )
+                        .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .help("\(direction.title) (T)")
+            }
         }
-        .buttonStyle(.plain)
-        .help(session.direction.title)
+        .padding(2)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.black.opacity(0.18))
+        )
     }
 
-    private var zoomButton: some View {
-        Button {
-            session.resetZoom()
-        } label: {
-            Text("\(Int((session.zoom * 100).rounded()))%")
-                .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                .foregroundStyle(Theme.textSecondary)
-                .frame(width: 46, height: 24)
-                .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color.white.opacity(0.045))
-                )
+    private var zoomControls: some View {
+        HStack(spacing: 2) {
+            HUDIconButton(symbol: "minus", help: "Уменьшить (⌘−)", size: 24) {
+                session.bridge.zoomOut()
+            }
+
+            Button {
+                session.resetZoom()
+            } label: {
+                Text("\(Int((session.zoom * 100).rounded()))%")
+                    .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(Theme.textSecondary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 24)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Сбросить масштаб (0 или ⌘0)")
+
+            HUDIconButton(symbol: "plus", help: "Увеличить (⌘+)", size: 24) {
+                session.bridge.zoomIn()
+            }
         }
-        .buttonStyle(.plain)
-        .help("Сбросить масштаб (⌘0)")
+        .padding(2)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.black.opacity(0.18))
+        )
+    }
+
+    private var footer: some View {
+        HStack(spacing: 6) {
+            HUDIconButton(
+                symbol: "questionmark",
+                help: "Управление и горячие клавиши (?)"
+            ) {
+                session.showHelp()
+            }
+
+            HUDIconButton(
+                symbol: "arrow.up.left.and.arrow.down.right",
+                help: "Полный экран (F)"
+            ) {
+                WindowChrome.toggleFullScreen()
+            }
+
+            Spacer(minLength: 0)
+        }
+    }
+
+    // MARK: Helpers
+
+    private func sectionLabel(_ text: String) -> some View {
+        Text(text.uppercased())
+            .font(.system(size: 8.5, weight: .bold, design: .rounded))
+            .tracking(0.9)
+            .foregroundStyle(Theme.textTertiary)
+    }
+
+    private func controlRow<Content: View>(
+        label: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        HStack(spacing: 8) {
+            sectionLabel(label)
+                .frame(width: 64, alignment: .leading)
+            content()
+        }
+        .frame(height: 28)
+    }
+
+    private var divider: some View {
+        Rectangle()
+            .fill(Color.white.opacity(0.08))
+            .frame(height: 1)
+            .padding(.vertical, 10)
     }
 }
 
@@ -248,13 +379,15 @@ struct ReaderBottomHUD: View {
 
     var body: some View {
         HStack(spacing: 9) {
-            HUDIconButton(symbol: "backward.end.fill", help: "Предыдущая глава") {
+            HUDIconButton(symbol: "backward.end.fill", help: "Предыдущая глава (⌘← или [)") {
                 session.previousChapter()
             }
 
             HUDIconButton(
                 symbol: "chevron.left",
-                help: session.direction == .rtl ? "Следующая страница" : "Предыдущая страница"
+                help: session.direction == .rtl
+                    ? "Следующая страница (←)"
+                    : "Предыдущая страница (←)"
             ) {
                 if session.direction == .rtl {
                     session.next()
@@ -270,14 +403,23 @@ struct ReaderBottomHUD: View {
             )
             .frame(height: 24)
 
-            Text(session.currentPageLabel)
-                .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                .foregroundStyle(Theme.textSecondary)
-                .frame(width: 94)
+            Button {
+                session.beginPageEntry()
+            } label: {
+                Text(session.currentPageLabel)
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(Theme.textSecondary)
+                    .frame(width: 94)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Перейти к странице (G)")
 
             HUDIconButton(
                 symbol: "chevron.right",
-                help: session.direction == .rtl ? "Предыдущая страница" : "Следующая страница"
+                help: session.direction == .rtl
+                    ? "Предыдущая страница (→)"
+                    : "Следующая страница (→)"
             ) {
                 if session.direction == .rtl {
                     session.previous()
@@ -286,7 +428,7 @@ struct ReaderBottomHUD: View {
                 }
             }
 
-            HUDIconButton(symbol: "forward.end.fill", help: "Следующая глава") {
+            HUDIconButton(symbol: "forward.end.fill", help: "Следующая глава (⌘→ или ])") {
                 session.nextChapter()
             }
         }

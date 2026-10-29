@@ -3,19 +3,91 @@ import QuartzCore
 
 // MARK: - Base views
 
-/// Flipped surface that forwards clicks and mouse movement to the reader.
+/// Flipped surface that forwards clicks, drags and mouse movement to the reader.
+///
+/// A click is reported on mouse-up so a drag can pan a zoomed or overflowing
+/// page without also turning it.
 @MainActor
 class CanvasSurfaceView: NSView {
     var onClick: ((NSEvent) -> Void)?
     var onPointerMove: ((NSEvent) -> Void)?
     var onPointerExit: (() -> Void)?
+    /// `dx`/`dy` use screen-like axes: positive `dy` means the pointer moved down.
+    var onPan: ((CGFloat, CGFloat) -> Void)?
+    /// Mouse back/forward buttons (3 and 4).
+    var onPageStep: ((Bool) -> Void)?
+    var onContextMenu: ((NSEvent) -> NSMenu?)?
+
+    var isPanEnabled = false
+
+    private var mouseDownLocation: NSPoint?
+    private var lastDragLocation: NSPoint?
+    private var isDragging = false
 
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     override func mouseDown(with event: NSEvent) {
-        onClick?(event)
+        // Control-click is the trackpad-friendly right click.
+        if event.modifierFlags.contains(.control), let menu = menu(for: event) {
+            NSMenu.popUpContextMenu(menu, with: event, for: self)
+            return
+        }
+
+        mouseDownLocation = event.locationInWindow
+        lastDragLocation = event.locationInWindow
+        isDragging = false
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard isPanEnabled,
+              let start = mouseDownLocation,
+              let last = lastDragLocation else { return }
+
+        let point = event.locationInWindow
+        if !isDragging {
+            let distance = hypot(point.x - start.x, point.y - start.y)
+            guard distance >= 3 else { return }
+            isDragging = true
+            NSCursor.closedHand.set()
+        }
+
+        // Window coordinates grow upwards; flip the vertical delta so it matches
+        // the direction the content should follow under the hand tool.
+        onPan?(point.x - last.x, last.y - point.y)
+        lastDragLocation = point
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        guard mouseDownLocation != nil else { return }
+
+        let wasDragging = isDragging
+        isDragging = false
+        mouseDownLocation = nil
+        lastDragLocation = nil
+
+        if wasDragging, isPanEnabled {
+            NSCursor.openHand.set()
+        }
+        if !wasDragging {
+            onClick?(event)
+        }
+    }
+
+    override func otherMouseDown(with event: NSEvent) {
+        switch event.buttonNumber {
+        case 3:
+            onPageStep?(false)
+        case 4:
+            onPageStep?(true)
+        default:
+            super.otherMouseDown(with: event)
+        }
+    }
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        onContextMenu?(event) ?? super.menu(for: event)
     }
 
     override func updateTrackingAreas() {
@@ -223,14 +295,23 @@ final class ZoomAnimator: NSObject {
 final class ReaderScrollView: NSScrollView {
     var onZoomChanged: ((CGFloat) -> Void)?
     var onHorizontalSwipe: ((CGFloat) -> Void)?
+    var onPageStep: ((Bool) -> Void)?
     var onPointerMove: ((NSEvent) -> Void)?
     var onPointerExit: (() -> Void)?
     var onSmartZoom: ((NSEvent) -> Void)?
+    var onContextMenu: ((NSEvent) -> NSMenu?)?
+    /// Horizontal two-finger swipe turns pages when the page fits horizontally.
     var pageSwipeEnabled = false
+    /// Vertical wheel turns pages only when there is nothing to scroll.
+    var pageWheelEnabled = false
 
     private var swipeAccumulator: CGFloat = 0
     private var swipeFired = false
     private var swipeResetTask: Task<Void, Never>?
+    private var wheelAccumulator: CGFloat = 0
+    private var wheelFired = false
+    private var lastWheelStepTime: CFTimeInterval = 0
+    private var wheelResetTask: Task<Void, Never>?
     private lazy var zoomAnimator: ZoomAnimator = {
         let animator = ZoomAnimator()
         animator.onTick = { [weak self] value in
@@ -267,6 +348,29 @@ final class ReaderScrollView: NSScrollView {
 
     override var acceptsFirstResponder: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    /// True when the document is larger than the viewport, either because the
+    /// page overflows at 100% or because the user zoomed in.
+    var canPan: Bool {
+        guard let documentView else { return false }
+        return documentView.bounds.width > contentView.bounds.width + 0.5
+            || documentView.bounds.height > contentView.bounds.height + 0.5
+    }
+
+    override func otherMouseDown(with event: NSEvent) {
+        switch event.buttonNumber {
+        case 3:
+            onPageStep?(false)
+        case 4:
+            onPageStep?(true)
+        default:
+            super.otherMouseDown(with: event)
+        }
+    }
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        onContextMenu?(event) ?? super.menu(for: event)
+    }
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
@@ -312,28 +416,49 @@ final class ReaderScrollView: NSScrollView {
         onSmartZoom?(event)
     }
 
-    // Two-finger horizontal swipe flips pages when zoomed out.
+    // Trackpad swipe flips pages; the wheel does the same when the page has no
+    // vertical overflow. Cmd + wheel zooms at the cursor for mouse users.
     override func scrollWheel(with event: NSEvent) {
-        let atBaseZoom = magnification <= 1.001
-
-        guard pageSwipeEnabled, atBaseZoom, event.hasPreciseScrollingDeltas else {
+        if event.modifierFlags.contains(.command) {
+            zoomFromScroll(event)
+            return
+        }
+        if event.modifierFlags.contains(.control) || event.modifierFlags.contains(.option) {
             super.scrollWheel(with: event)
             return
         }
 
+        let atBaseZoom = magnification <= 1.001
+        let axis = ReaderInteraction.scrollAxis(
+            deltaX: event.scrollingDeltaX,
+            deltaY: event.scrollingDeltaY
+        )
+
         if event.momentumPhase != [] {
-            if abs(event.scrollingDeltaX) > abs(event.scrollingDeltaY) {
+            if pageSwipeEnabled, atBaseZoom, event.hasPreciseScrollingDeltas, axis == .horizontal {
+                return
+            }
+            if pageWheelEnabled, atBaseZoom, axis == .vertical {
                 return
             }
             super.scrollWheel(with: event)
             return
         }
 
-        guard abs(event.scrollingDeltaX) > abs(event.scrollingDeltaY) * 1.15 else {
-            super.scrollWheel(with: event)
+        if pageSwipeEnabled, atBaseZoom, event.hasPreciseScrollingDeltas, axis == .horizontal {
+            handleHorizontalSwipe(event)
             return
         }
 
+        if pageWheelEnabled, atBaseZoom, axis == .vertical {
+            handleVerticalPageScroll(event)
+            return
+        }
+
+        super.scrollWheel(with: event)
+    }
+
+    private func handleHorizontalSwipe(_ event: NSEvent) {
         if event.phase == .began {
             swipeAccumulator = 0
             swipeFired = false
@@ -353,6 +478,50 @@ final class ReaderScrollView: NSScrollView {
         }
     }
 
+    private func handleVerticalPageScroll(_ event: NSEvent) {
+        let delta = event.scrollingDeltaY
+        guard delta.isFinite, abs(delta) > 0.01 else { return }
+
+        if event.hasPreciseScrollingDeltas {
+            if event.phase == .began {
+                wheelAccumulator = 0
+                wheelFired = false
+            }
+            if event.phase == .ended || event.phase == .cancelled {
+                wheelAccumulator = 0
+                wheelFired = false
+                return
+            }
+
+            wheelAccumulator += delta
+            guard !wheelFired, abs(wheelAccumulator) >= 46 else { return }
+            wheelFired = true
+            onPageStep?(wheelAccumulator < 0)
+            scheduleWheelReset()
+        } else {
+            // A legacy wheel sends line-based deltas: one notch, one page.
+            let now = CACurrentMediaTime()
+            guard now - lastWheelStepTime >= 0.11 else { return }
+            lastWheelStepTime = now
+            onPageStep?(delta < 0)
+        }
+    }
+
+    private func zoomFromScroll(_ event: NSEvent) {
+        let delta = event.scrollingDeltaY
+        guard delta.isFinite, abs(delta) > 0.01 else { return }
+
+        let scale: CGFloat = event.hasPreciseScrollingDeltas ? 0.012 : 0.16
+        let factor = min(2, max(0.5, exp(delta * scale)))
+        let target = min(max(magnification * factor, minMagnification), maxMagnification)
+        guard abs(target - magnification) > 0.0001 else { return }
+
+        let point = contentView.convert(event.locationInWindow, from: nil)
+        zoomAnimator.invalidate()
+        setMagnification(target, centeredAt: point)
+        onZoomChanged?(magnification)
+    }
+
     private func scheduleSwipeReset() {
         swipeResetTask?.cancel()
         swipeResetTask = Task { [weak self] in
@@ -360,6 +529,16 @@ final class ReaderScrollView: NSScrollView {
             guard !Task.isCancelled else { return }
             self?.swipeAccumulator = 0
             self?.swipeFired = false
+        }
+    }
+
+    private func scheduleWheelReset() {
+        wheelResetTask?.cancel()
+        wheelResetTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(420))
+            guard !Task.isCancelled else { return }
+            self?.wheelAccumulator = 0
+            self?.wheelFired = false
         }
     }
 
@@ -399,5 +578,7 @@ final class ReaderScrollView: NSScrollView {
 
     func cancelAnimations() {
         zoomAnimator.invalidate()
+        swipeResetTask?.cancel()
+        wheelResetTask?.cancel()
     }
 }

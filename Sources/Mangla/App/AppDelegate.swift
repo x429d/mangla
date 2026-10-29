@@ -55,6 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private let model = AppModel()
     private var window: ManglaWindow?
     private var hostingController: NSHostingController<RootView>?
+    private var lastNavigationKeyTime: TimeInterval = 0
 
     // MARK: - Lifecycle
 
@@ -67,8 +68,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         window?.makeKeyAndOrderFront(nil)
         window?.makeFirstResponder(window?.contentView)
         NSApp.activate(ignoringOtherApps: true)
-
-        model.bridge.focus()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -167,69 +166,95 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         guard let session = model.reading else { return false }
 
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        if flags.contains(.command) || flags.contains(.control) || flags.contains(.option) {
+
+        // The page field owns the keyboard while it is open; Enter is handled by
+        // its TextField, Esc cancels here.
+        if session.isPageEntryVisible {
+            if event.keyCode == 53 {
+                session.cancelPageEntry()
+                return true
+            }
             return false
         }
 
-        switch event.keyCode {
-        case 53: // Esc
-            model.closeReader()
+        // The cheat sheet is modal for reading keys, but system menu shortcuts
+        // (⌘Q, ⌘W, ⌘H…) still work.
+        if session.isHelpVisible {
+            if event.keyCode == 53
+                || ReaderShortcuts.isHelpKey(keyCode: event.keyCode, modifiers: flags) {
+                session.hideHelp()
+                return true
+            }
+            if flags.contains(.command) || flags.contains(.control) || flags.contains(.option) {
+                return false
+            }
             return true
-        case 123: // Left
-            if session.direction == .rtl { session.next() } else { session.previous() }
-            return true
-        case 124: // Right
-            if session.direction == .rtl { session.previous() } else { session.next() }
-            return true
-        case 0: // A (acts like Left)
-            if session.direction == .rtl { session.next() } else { session.previous() }
-            return true
-        case 2: // D (acts like Right)
-            if session.direction == .rtl { session.previous() } else { session.next() }
-            return true
-        case 49, 121: // Space, Page Down
-            session.next()
-            return true
-        case 116: // Page Up
-            session.previous()
-            return true
-        case 115: // Home
-            session.goToPage(0)
-            return true
-        case 119: // End
-            session.goToPage(max(0, session.totalPages - 1))
-            return true
-        case 18: // 1
-            session.layoutMode = .single
-            return true
-        case 19: // 2
-            session.layoutMode = .spread
-            return true
-        case 20: // 3
-            session.layoutMode = .webtoon
-            return true
-        case 17: // T
-            guard session.layoutMode != .webtoon else { return true }
-            session.direction = session.direction == .rtl ? .ltr : .rtl
-            return true
-        case 4: // H — fit height
-            guard session.layoutMode != .webtoon else { return true }
-            session.fitMode = .fitHeight
-            return true
-        case 13: // W — fit width
-            guard session.layoutMode != .webtoon else { return true }
-            session.fitMode = .fitWidth
-            return true
-        case 31: // O — original size
-            guard session.layoutMode != .webtoon else { return true }
-            session.fitMode = .original
-            return true
-        case 3: // F
-            WindowChrome.toggleFullScreen()
-            return true
-        default:
+        }
+
+        guard let command = ReaderShortcuts.command(
+            keyCode: event.keyCode,
+            modifiers: flags,
+            layoutMode: session.layoutMode
+        ) else {
             return false
         }
+
+        if event.isARepeat, !command.allowsKeyRepeat {
+            guard event.timestamp - lastNavigationKeyTime >= 0.10 else { return true }
+        }
+        lastNavigationKeyTime = event.timestamp
+
+        return perform(command, in: session)
+    }
+
+    private func perform(_ command: ReaderKeyCommand, in session: ReadingSession) -> Bool {
+        switch command {
+        case .close:
+            model.closeReader()
+        case .pageLeft:
+            if session.direction == .rtl { session.next() } else { session.previous() }
+        case .pageRight:
+            if session.direction == .rtl { session.previous() } else { session.next() }
+        case .pageForward:
+            session.next()
+        case .pageBackward:
+            session.previous()
+        case .chapterForward:
+            session.nextChapter()
+        case .chapterBackward:
+            session.previousChapter()
+        case .firstPage:
+            session.goToPage(0)
+        case .lastPage:
+            session.goToPage(max(0, session.totalPages - 1))
+        case .screenForward:
+            if session.bridge.scrollScreen(forward: true) { return true }
+            if session.zoom > 1.01, session.layoutMode != .webtoon { return true }
+            session.next()
+        case .screenBackward:
+            if session.bridge.scrollScreen(forward: false) { return true }
+            if session.zoom > 1.01, session.layoutMode != .webtoon { return true }
+            session.previous()
+        case .layout(let mode):
+            session.layoutMode = mode
+        case .toggleDirection:
+            session.toggleDirection()
+        case .fit(let mode):
+            session.fitMode = mode
+        case .zoomIn:
+            session.bridge.zoomIn()
+        case .zoomOut:
+            session.bridge.zoomOut()
+        case .resetZoom:
+            session.resetZoom()
+        case .toggleFullScreen:
+            WindowChrome.toggleFullScreen()
+        case .toggleHelp:
+            session.toggleHelp()
+        case .pageEntry:
+            session.beginPageEntry()
+        }
+        return true
     }
 
     // MARK: - Menu
@@ -278,6 +303,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         editMenu.addItem(withTitle: "Вставить", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
         editMenu.addItem(withTitle: "Выбрать всё", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
 
+        let readingMenuItem = NSMenuItem()
+        mainMenu.addItem(readingMenuItem)
+        let readingMenu = NSMenu(title: "Чтение")
+        readingMenuItem.submenu = readingMenu
+        readingMenu.addItem(menuItem("Предыдущая страница", #selector(readingPreviousPage(_:)), ""))
+        readingMenu.addItem(menuItem("Следующая страница", #selector(readingNextPage(_:)), ""))
+        readingMenu.addItem(.separator())
+        readingMenu.addItem(menuItem("Предыдущая глава", #selector(readingPreviousChapter(_:)), ""))
+        readingMenu.addItem(menuItem("Следующая глава", #selector(readingNextChapter(_:)), ""))
+        readingMenu.addItem(.separator())
+        readingMenu.addItem(menuItem("Перейти к странице…", #selector(readingGoToPage(_:)), "g"))
+
         let viewMenuItem = NSMenuItem()
         mainMenu.addItem(viewMenuItem)
         let viewMenu = NSMenu(title: "Вид")
@@ -298,7 +335,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         windowMenu.addItem(withTitle: "Масштаб", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
         NSApp.windowsMenu = windowMenu
 
+        let helpMenuItem = NSMenuItem()
+        mainMenu.addItem(helpMenuItem)
+        let helpMenu = NSMenu(title: "Справка")
+        helpMenuItem.submenu = helpMenu
+        helpMenu.addItem(menuItem("Управление читалкой", #selector(readingShowHelp(_:)), "/"))
+
         NSApp.mainMenu = mainMenu
+        NSApp.helpMenu = helpMenu
     }
 
     private func menuItem(
@@ -325,9 +369,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         guard model.reading != nil else { return }
         model.closeReader()
     }
-    @objc private func zoomIn(_ sender: Any?) { model.bridge.zoomIn() }
-    @objc private func zoomOut(_ sender: Any?) { model.bridge.zoomOut() }
-    @objc private func resetZoom(_ sender: Any?) { model.bridge.resetZoom() }
+    @objc private func readingPreviousPage(_ sender: Any?) { model.reading?.previous() }
+    @objc private func readingNextPage(_ sender: Any?) { model.reading?.next() }
+    @objc private func readingPreviousChapter(_ sender: Any?) { model.reading?.previousChapter() }
+    @objc private func readingNextChapter(_ sender: Any?) { model.reading?.nextChapter() }
+    @objc private func readingGoToPage(_ sender: Any?) { model.reading?.beginPageEntry() }
+    @objc private func readingShowHelp(_ sender: Any?) { model.reading?.toggleHelp() }
+    @objc private func zoomIn(_ sender: Any?) { model.reading?.bridge.zoomIn() }
+    @objc private func zoomOut(_ sender: Any?) { model.reading?.bridge.zoomOut() }
+    @objc private func resetZoom(_ sender: Any?) { model.reading?.bridge.resetZoom() }
     @objc private func toggleFullScreen(_ sender: Any?) { WindowChrome.toggleFullScreen() }
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
@@ -339,6 +389,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         case #selector(closeReader(_:)):
             return model.reading != nil
         case #selector(zoomIn(_:)), #selector(zoomOut(_:)), #selector(resetZoom(_:)):
+            return model.reading != nil
+        case #selector(readingPreviousPage(_:)), #selector(readingNextPage(_:)),
+             #selector(readingPreviousChapter(_:)), #selector(readingNextChapter(_:)),
+             #selector(readingGoToPage(_:)), #selector(readingShowHelp(_:)):
             return model.reading != nil
         case #selector(toggleSidebar(_:)):
             return model.reading == nil && !model.collections.isEmpty

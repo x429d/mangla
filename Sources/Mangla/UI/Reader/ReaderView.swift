@@ -15,27 +15,44 @@ struct ReaderView: View {
                 loadingOverlay
             }
 
-            VStack(spacing: 0) {
-                ReaderTopHUD(
+            ZStack(alignment: .topLeading) {
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+
+                    EndOfChapterPill(session: session)
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 10)
+
+                    ReaderBottomHUD(session: session)
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 14)
+                }
+                .allowsHitTesting(!session.isLoadingChapter)
+
+                ReaderSidebar(
                     session: session,
-                    leadingInset: isFullScreen ? 0 : 70
+                    topInset: isFullScreen
+                        ? ReaderSidebarLayout.fullScreenTop
+                        : ReaderSidebarLayout.windowTop
                 )
-
-                Spacer(minLength: 0)
-
-                EndOfChapterPill(session: session)
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 10)
-
-                ReaderBottomHUD(session: session)
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 14)
+                .allowsHitTesting(!session.isLoadingChapter)
             }
-            .allowsHitTesting(!session.isLoadingChapter)
 
             ReaderToast(session: session)
+
+            if session.isPageEntryVisible {
+                ReaderPageEntryOverlay(session: session)
+                    .zIndex(3)
+            }
+
+            if session.isHelpVisible {
+                ReaderShortcutsOverlay(session: session)
+                    .zIndex(4)
+            }
         }
         .background(Theme.readerBackground)
+        .animation(.easeOut(duration: 0.14), value: session.isHelpVisible)
+        .animation(.easeOut(duration: 0.12), value: session.isPageEntryVisible)
         .onAppear {
             isFullScreen = WindowChrome.isFullScreen
             session.chrome.hideAll()
@@ -51,7 +68,7 @@ struct ReaderView: View {
             NSCursor.arrow.set()
             NSCursor.setHiddenUntilMouseMoves(false)
         }
-        .onChange(of: session.chrome.isTopVisible) { _, visible in
+        .onChange(of: session.chrome.isSideVisible) { _, visible in
             WindowChrome.setTrafficLightsHidden(!visible)
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { _ in
@@ -60,7 +77,7 @@ struct ReaderView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didExitFullScreenNotification)) { _ in
             isFullScreen = false
-            WindowChrome.setTrafficLightsHidden(!session.chrome.isTopVisible)
+            WindowChrome.setTrafficLightsHidden(!session.chrome.isSideVisible)
         }
     }
 
@@ -188,7 +205,7 @@ struct ReaderToast: View {
                     .background(Capsule().fill(.ultraThinMaterial))
                     .overlay(Capsule().strokeBorder(Theme.stroke, lineWidth: 1))
                     .shadow(color: .black.opacity(0.35), radius: 14, y: 6)
-                    .padding(.top, 76)
+                    .padding(.top, 22)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
             Spacer()

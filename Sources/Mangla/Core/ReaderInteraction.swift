@@ -12,6 +12,11 @@ enum ReaderSideZone: Equatable, Sendable {
     case right
 }
 
+enum ReaderScrollAxis: Equatable, Sendable {
+    case horizontal
+    case vertical
+}
+
 /// Geometry for the reader's click zones and page-turn animation direction.
 ///
 /// The left and right thirds of the viewport turn pages; the middle third is
@@ -47,5 +52,22 @@ enum ReaderInteraction {
     /// mirrored relative to LTR.
     static func comesFromRight(movingForward: Bool, direction: ReadingDirection) -> Bool {
         movingForward != (direction == .rtl)
+    }
+
+    /// Scroll gestures often contain a little of both axes. Horizontal intent
+    /// wins only when it clearly dominates, so a two-finger page swipe does not
+    /// start scrolling diagonally.
+    static func scrollAxis(deltaX: CGFloat, deltaY: CGFloat) -> ReaderScrollAxis {
+        guard deltaX.isFinite, deltaY.isFinite else { return .vertical }
+        return abs(deltaX) > abs(deltaY) * 1.15 ? .horizontal : .vertical
+    }
+
+    /// Parses a 1-based page number typed into the "go to page" field.
+    static func pageIndex(from text: String, pageCount: Int) -> Int? {
+        guard pageCount > 0 else { return nil }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let number = Int(trimmed) else { return nil }
+        guard (1...pageCount).contains(number) else { return nil }
+        return number - 1
     }
 }
