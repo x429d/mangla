@@ -12,8 +12,27 @@ final class AppModel {
     var progressByCollection: [String: [String: MangaProgress]] = [:]
 
     // Library browsing
-    var filter: LibraryFilter = .all
-    var searchText = ""
+    private var storedFilter: LibraryFilter = .all
+    private var storedSearchText = ""
+
+    var filter: LibraryFilter {
+        get { storedFilter }
+        set {
+            guard newValue != storedFilter else { return }
+            storedFilter = newValue
+            libraryPage = 0
+        }
+    }
+
+    var searchText: String {
+        get { storedSearchText }
+        set {
+            guard newValue != storedSearchText else { return }
+            storedSearchText = newValue
+            libraryPage = 0
+        }
+    }
+
     var libraryPage = 0
     let pageSize = LibraryPagination.defaultPageSize
     var columnVisibility: NavigationSplitViewVisibility = .all

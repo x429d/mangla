@@ -107,62 +107,60 @@ struct LibraryGridView: View {
 
     // MARK: - Main scroll content
 
+    /// Changing the filter, search, collection or page rebuilds the scroll
+    /// view. This guarantees a clean top position even when the previous
+    /// content was shorter than the old scroll offset (otherwise the grid can
+    /// show a blank area after filtering while scrolled down).
+    private var libraryResetID: String {
+        let collection = model.selectedCollectionID?.uuidString ?? "none"
+        return [
+            collection,
+            model.filter.rawValue,
+            model.searchText,
+            String(model.currentPage),
+            String(model.filteredMangas.count)
+        ].joined(separator: "|")
+    }
+
     private var libraryScroll: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 24) {
-                    Color.clear
-                        .frame(height: 0)
-                        .id("libraryTop")
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 24) {
+                topBar
+                header
 
-                    topBar
-                    header
+                if model.currentPage == 0,
+                   let target = model.continueTarget,
+                   model.searchText.isEmpty,
+                   model.filter == .all {
+                    ContinueBanner(
+                        manga: target.manga,
+                        chapter: target.chapter,
+                        pageIndex: target.pageIndex,
+                        fraction: model.progressFraction(for: target.manga),
+                        onOpen: { model.continueReading() }
+                    )
+                }
 
-                    if model.currentPage == 0,
-                       let target = model.continueTarget,
-                       model.searchText.isEmpty,
-                       model.filter == .all {
-                        ContinueBanner(
-                            manga: target.manga,
-                            chapter: target.chapter,
-                            pageIndex: target.pageIndex,
-                            fraction: model.progressFraction(for: target.manga),
-                            onOpen: { model.continueReading() }
-                        )
-                    }
-
-                    gridSection
-                    footer
-                }
-                .padding(.horizontal, 30)
-                .padding(.top, 38)
-                .padding(.bottom, 34)
+                gridSection
+                footer
             }
-            .scrollIndicators(.never)
-            .onChange(of: model.libraryPage) { _, _ in
-                withAnimation(Theme.snappy) {
-                    proxy.scrollTo("libraryTop", anchor: .top)
-                }
-            }
-            .onChange(of: model.searchText) { _, _ in
-                model.resetPage()
-                withAnimation(Theme.snappy) {
-                    proxy.scrollTo("libraryTop", anchor: .top)
-                }
-            }
-            .onChange(of: model.filter) { _, _ in
-                model.resetPage()
-                withAnimation(Theme.snappy) {
-                    proxy.scrollTo("libraryTop", anchor: .top)
-                }
-            }
-            .onChange(of: model.selectedCollectionID) { _, _ in
-                model.resetPage()
-                proxy.scrollTo("libraryTop", anchor: .top)
-            }
-            .onChange(of: model.filteredMangas.count) { _, _ in
-                model.clampPage()
-            }
+            .padding(.horizontal, 30)
+            .padding(.top, 38)
+            .padding(.bottom, 34)
+        }
+        .scrollIndicators(.never)
+        .id(libraryResetID)
+        .onChange(of: model.searchText) { _, _ in
+            model.resetPage()
+        }
+        .onChange(of: model.filter) { _, _ in
+            model.resetPage()
+        }
+        .onChange(of: model.selectedCollectionID) { _, _ in
+            model.resetPage()
+        }
+        .onChange(of: model.filteredMangas.count) { _, _ in
+            model.clampPage()
         }
     }
 
