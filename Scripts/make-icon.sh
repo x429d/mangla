@@ -6,7 +6,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT="$ROOT/Resources/AppIcon.icns"
-TMP="$(mktemp -d "${TMPDIR:-/tmp}mangla-icon.XXXXXX")"
+TMP="$(mktemp -d -t mangla-icon)"
 trap 'rm -rf "$TMP"' EXIT
 
 echo "▸ rendering 1024 px master"

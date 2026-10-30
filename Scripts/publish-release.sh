@@ -26,7 +26,7 @@ if gh api "repos/$REPOSITORY/git/ref/tags/$TAG" >/dev/null 2>&1; then
         --notes "Automated build from $TARGET."
 else
     echo "==> creating $TAG"
-    NOTES_FILE="$(mktemp "${TMPDIR:-/tmp}mangla-notes.XXXXXX")"
+    NOTES_FILE="$(mktemp -t mangla-notes)"
     trap 'rm -f "$NOTES_FILE"' EXIT
     "$ROOT/Scripts/release-notes.sh" "$VERSION" > "$NOTES_FILE"
     gh release create "$TAG" "$ZIP" "$CHECKSUM" \

@@ -16,7 +16,7 @@ The project has no external runtime dependencies. Do not add one without discuss
 
 - Swift 6 language mode; keep `@MainActor` on UI-bound types and `Sendable` honest.
 - Follow the Swift API Design Guidelines. Prefer clear names to comments.
-- Comments explain why, not what. No commented-out code, author banners, or unreferenced TODOs.
+- Comments explain why, not what. No commented-out code, author banners, or unreferenced work items.
 - Run `swift format lint --recursive Sources Tests` before opening a PR. Apply the committed `.swift-format` configuration with `swift format format --in-place --recursive Sources Tests`.
 - User-visible strings belong in `Sources/Mangla/Core/LocalizationCatalog.swift`, with both English and Russian entries.
 
