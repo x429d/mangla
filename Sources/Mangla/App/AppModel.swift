@@ -212,7 +212,7 @@ final class AppModel {
                 bookmark = SecurityBookmark.make(for: legacy)
             }
 
-            if available, (bookmark == nil || resolvedBookmark?.isStale == true) {
+            if available, (resolvedBookmark == nil || resolvedBookmark?.isStale == true) {
                 bookmark = SecurityBookmark.make(for: resolved)
             }
 
