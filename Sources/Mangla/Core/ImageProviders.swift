@@ -72,9 +72,6 @@ actor ThumbnailProvider {
         return image
     }
 
-    func clearCache() {
-        cache.removeAllObjects()
-    }
 }
 
 /// Header-only metadata probe. Reading EXIF dimensions takes a few hundred

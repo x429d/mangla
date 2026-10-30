@@ -227,10 +227,6 @@ final class PageContentView: CanvasSurfaceView {
         messageLabel.isHidden = true
     }
 
-    func stopLoading() {
-        spinner.stopAnimation(nil)
-        spinner.isHidden = true
-    }
 }
 
 // MARK: - Smooth zoom animation (display-link driven)
