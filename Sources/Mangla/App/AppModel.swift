@@ -515,7 +515,8 @@ final class AppModel {
 
         watchers[id] = ProjectWatcher(
             root: collection.directoryURL,
-            mangaDirectories: collection.mangas.map(\.directoryURL)
+            mangaDirectories: collection.mangas.map(\.directoryURL),
+            chapterDirectories: collection.mangas.flatMap { $0.chapters.map(\.directoryURL) }
         ) { [weak self] in
             self?.scheduleRescan(collectionID: id)
         }

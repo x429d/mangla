@@ -1,23 +1,20 @@
 import Darwin
 import Foundation
+import os
 
-/// Lightweight recursive-ish directory watcher built on
-/// `DispatchSourceFileSystemObject`. One source per project root and per manga
-/// folder (capped) detects new chapters and new pages without polling.
+/// Lightweight directory watcher built on `DispatchSourceFileSystemObject`.
+/// One source per collection root, manga folder, and chapter folder (capped)
+/// detects new chapters and new pages without polling.
 @MainActor
 final class DirectoryWatcher {
-    private let url: URL
     private let onChange: @MainActor () -> Void
     private var source: DispatchSourceFileSystemObject?
-    private var descriptor: Int32 = -1
 
     init?(url: URL, onChange: @escaping @MainActor () -> Void) {
-        self.url = url
         self.onChange = onChange
 
         let fd = open(url.path, O_EVTONLY)
         guard fd >= 0 else { return nil }
-        descriptor = fd
 
         let source = DispatchSource.makeFileSystemObjectSource(
             fileDescriptor: fd,
@@ -41,7 +38,6 @@ final class DirectoryWatcher {
     func stop() {
         source?.cancel()
         source = nil
-        descriptor = -1
     }
 
     deinit {
@@ -51,20 +47,31 @@ final class DirectoryWatcher {
 
 @MainActor
 final class ProjectWatcher {
+    private static let logger = Logger(subsystem: "com.mangla.reader", category: "watcher")
+    private static let watcherLimit = 200
+
     private var watchers: [DirectoryWatcher] = []
 
     init(
         root: URL,
         mangaDirectories: [URL],
+        chapterDirectories: [URL],
         onChange: @escaping @MainActor () -> Void
     ) {
-        if let rootWatcher = DirectoryWatcher(url: root, onChange: onChange) {
-            watchers.append(rootWatcher)
+        var seen = Set<String>()
+        var directories: [URL] = []
+        for url in [root] + mangaDirectories + chapterDirectories {
+            let key = url.standardizedFileURL.path
+            if seen.insert(key).inserted {
+                directories.append(url)
+            }
         }
-        // Watching every manga folder keeps chapter additions live. Cap the
-        // number of descriptors for very large libraries; the project root
-        // watcher (and the manual Refresh button) still work.
-        for directory in mangaDirectories.prefix(200) {
+
+        if directories.count > Self.watcherLimit {
+            Self.logger.notice("Watching the first \(Self.watcherLimit) of \(directories.count) directories")
+        }
+
+        for directory in directories.prefix(Self.watcherLimit) {
             if let watcher = DirectoryWatcher(url: directory, onChange: onChange) {
                 watchers.append(watcher)
             }
