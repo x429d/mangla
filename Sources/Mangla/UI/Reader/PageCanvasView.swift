@@ -46,7 +46,6 @@ struct PageCanvasRepresentable: NSViewRepresentable {
         private var currentURLs: [URL] = []
         private var currentFit: FitMode?
         private var lastRenderedPageIndex: Int?
-        private var lastViewport: CGSize = .zero
         private var generation = 0
         private var installed = false
 
@@ -108,7 +107,6 @@ struct PageCanvasRepresentable: NSViewRepresentable {
             let urls = slots.map(\.url)
             let slotsChanged = urls != currentURLs
             let fitChanged = fitMode != currentFit
-            let viewportChanged = viewport != lastViewport
 
             let newPageIndex = session.currentPageIndex
             let movingForward: Bool?
@@ -146,7 +144,7 @@ struct PageCanvasRepresentable: NSViewRepresentable {
             if slotsChanged {
                 scrollToTop()
                 loadImages(for: slots)
-            } else if fitChanged || viewportChanged {
+            } else if fitChanged {
                 scrollToTop()
             }
 
@@ -157,7 +155,6 @@ struct PageCanvasRepresentable: NSViewRepresentable {
 
             currentURLs = urls
             currentFit = fitMode
-            lastViewport = viewport
             lastRenderedPageIndex = newPageIndex
 
             prefetch()
