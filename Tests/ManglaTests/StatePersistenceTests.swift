@@ -32,6 +32,17 @@ final class StatePersistenceTests: XCTestCase {
         XCTAssertEqual(backup.collections.first?.name, "First")
     }
 
+    func testMissingPrimaryIsRestoredFromBackup() throws {
+        let store = StateStore(directoryURL: directory)
+        try store.write(state(named: "First"))
+        try store.write(state(named: "Second"))
+        try FileManager.default.removeItem(at: store.stateURL)
+
+        let restored = try XCTUnwrap(store.load())
+        XCTAssertEqual(restored.collections.first?.name, "First")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: store.stateURL.path))
+    }
+
     func testCorruptStateIsQuarantinedAndBackupIsRestored() throws {
         let store = StateStore(directoryURL: directory)
         try store.write(state(named: "First"))

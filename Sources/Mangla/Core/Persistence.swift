@@ -77,7 +77,9 @@ struct StateStore: Sendable {
 
     func load() -> LibraryState? {
         let fileManager = FileManager.default
-        guard fileManager.fileExists(atPath: stateURL.path) else { return nil }
+        guard fileManager.fileExists(atPath: stateURL.path) else {
+            return restoreBackupIfPresent()
+        }
 
         if let data = try? Data(contentsOf: stateURL),
             let state = StatePersistence.decode(data)
@@ -87,7 +89,10 @@ struct StateStore: Sendable {
 
         StatePersistence.logger.error("state.json could not be decoded; attempting backup")
         quarantineCorruptState()
+        return restoreBackupIfPresent()
+    }
 
+    private func restoreBackupIfPresent() -> LibraryState? {
         guard let backupData = try? Data(contentsOf: backupURL),
             let backup = StatePersistence.decode(backupData)
         else {
