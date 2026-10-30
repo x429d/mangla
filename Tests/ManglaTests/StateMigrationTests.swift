@@ -38,4 +38,25 @@ final class StateMigrationTests: XCTestCase {
         XCTAssertEqual(migrated.chapters["Berserk/Vol. 01"]?.pageIndex, 4)
         XCTAssertEqual(migrated.chapters["Berserk/Vol. 01"]?.isCompleted, false)
     }
+
+    func testMigratedStateRoundTripsWithoutAnotherMigration() throws {
+        let legacy = LegacyLibraryState(
+            version: 1,
+            projectPath: "/tmp/MangaDemo",
+            lastMangaID: "Berserk",
+            progress: ["Berserk": MangaProgress()],
+            updatedAt: nil
+        )
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(legacy)
+        let migrated = try XCTUnwrap(StatePersistence.decode(data))
+        let encoded = try StatePersistence.encode(migrated)
+        let decoded = try XCTUnwrap(StatePersistence.decode(encoded))
+
+        XCTAssertEqual(decoded.version, 2)
+        XCTAssertEqual(decoded.collections.first?.id, migrated.collections.first?.id)
+        XCTAssertEqual(decoded.selectedCollectionID, migrated.selectedCollectionID)
+        XCTAssertEqual(decoded.progress.keys, migrated.progress.keys)
+    }
 }
