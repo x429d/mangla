@@ -62,6 +62,17 @@ final class StatePersistenceTests: XCTestCase {
         XCTAssertEqual(quarantined.count, 1)
     }
 
+    func testBookmarkRoundTripResolvesTheFolder() throws {
+        let folder = directory.appendingPathComponent("Library", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+
+        let data = try XCTUnwrap(SecurityBookmark.make(for: folder))
+        let resolved = try XCTUnwrap(SecurityBookmark.resolveDetailed(data))
+
+        XCTAssertEqual(resolved.url.standardizedFileURL.path, folder.standardizedFileURL.path)
+        XCTAssertFalse(resolved.isStale)
+    }
+
     private func state(named name: String) -> LibraryState {
         let id = UUID()
         return LibraryState(

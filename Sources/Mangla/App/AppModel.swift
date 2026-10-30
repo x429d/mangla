@@ -193,7 +193,8 @@ final class AppModel {
     private func loadStoredCollections(_ records: [StoredCollection]) {
         for record in records {
             let fallback = URL(fileURLWithPath: record.path)
-            var resolved = record.bookmark.flatMap(SecurityBookmark.resolve) ?? fallback
+            let resolvedBookmark = record.bookmark.flatMap(SecurityBookmark.resolveDetailed)
+            var resolved = resolvedBookmark?.url ?? fallback
             var available = isDirectory(resolved)
             var bookmark = record.bookmark
 
@@ -206,7 +207,7 @@ final class AppModel {
                 bookmark = SecurityBookmark.make(for: legacy)
             }
 
-            if bookmark == nil, available {
+            if available, (bookmark == nil || resolvedBookmark?.isStale == true) {
                 bookmark = SecurityBookmark.make(for: resolved)
             }
 
@@ -532,6 +533,7 @@ final class AppModel {
     }
 
     private func access(_ url: URL, id: UUID) {
+        guard scopedURLs[id] == nil else { return }
         if url.startAccessingSecurityScopedResource() {
             scopedURLs[id] = url
         }

@@ -220,25 +220,44 @@ enum AppDefaults {
 
 // MARK: - Security-scoped bookmarks
 
+struct ResolvedBookmark: Sendable {
+    let url: URL
+    let isStale: Bool
+}
+
 enum SecurityBookmark {
+    private static let logger = Logger(subsystem: "com.mangla.reader", category: "bookmarks")
+
     static func make(for url: URL) -> Data? {
         // Sandboxed apps need the security scope; for a non-sandboxed build
         // creation may fail, so fall back to a regular bookmark.
-        if let data = try? url.bookmarkData(
-            options: [.withSecurityScope],
-            includingResourceValuesForKeys: nil,
-            relativeTo: nil
-        ) {
-            return data
+        do {
+            return try url.bookmarkData(
+                options: [.withSecurityScope],
+                includingResourceValuesForKeys: nil,
+                relativeTo: nil
+            )
+        } catch {
+            logger.debug("Security-scoped bookmark failed for \(url.path, privacy: .public): \(error.localizedDescription)")
         }
-        return try? url.bookmarkData(
-            options: [],
-            includingResourceValuesForKeys: nil,
-            relativeTo: nil
-        )
+
+        do {
+            return try url.bookmarkData(
+                options: [],
+                includingResourceValuesForKeys: nil,
+                relativeTo: nil
+            )
+        } catch {
+            logger.error("Could not create bookmark for \(url.path, privacy: .public): \(error.localizedDescription)")
+            return nil
+        }
     }
 
     static func resolve(_ data: Data) -> URL? {
+        resolveDetailed(data)?.url
+    }
+
+    static func resolveDetailed(_ data: Data) -> ResolvedBookmark? {
         var isStale = false
         if let url = try? URL(
             resolvingBookmarkData: data,
@@ -246,8 +265,9 @@ enum SecurityBookmark {
             relativeTo: nil,
             bookmarkDataIsStale: &isStale
         ), FileManager.default.fileExists(atPath: url.path) {
-            return url
+            return ResolvedBookmark(url: url, isStale: isStale)
         }
+
         isStale = false
         if let url = try? URL(
             resolvingBookmarkData: data,
@@ -255,7 +275,7 @@ enum SecurityBookmark {
             relativeTo: nil,
             bookmarkDataIsStale: &isStale
         ), FileManager.default.fileExists(atPath: url.path) {
-            return url
+            return ResolvedBookmark(url: url, isStale: isStale)
         }
         return nil
     }
