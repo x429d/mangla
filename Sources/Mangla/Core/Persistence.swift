@@ -131,7 +131,7 @@ struct StateStore: Sendable {
 
     private func quarantineCorruptState() {
         let destination = directoryURL.appendingPathComponent(
-            "state.json.corrupt-\(Int(Date().timeIntervalSince1970))"
+            "state.json.corrupt-\(Int(Date().timeIntervalSince1970))-\(UUID().uuidString.prefix(8))"
         )
         do {
             if FileManager.default.fileExists(atPath: destination.path) {
