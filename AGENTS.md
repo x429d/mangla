@@ -83,9 +83,9 @@ swift format format --in-place --recursive Sources Tests
 
 ## Git and release
 
-- `master` is protected: no force-push, no deletion, and the `Build and test` check is required.
+- `master` is PR-only: no direct pushes, no force-push, no deletion. Open a pull request; the `Build and test` check must pass before merge.
 - Use Conventional Commits and one concern per commit.
-- A push to `master` runs CI. If `v<VERSION>` does not exist, CI creates a stable release; otherwise it replaces the rolling `nightly` prerelease.
+- Merging to `master` runs CI. If `v<VERSION>` does not exist, CI creates a stable release; otherwise it replaces the rolling `nightly` prerelease.
 - Do not tag, publish, or change repository visibility without explicit maintainer approval.
 - Do not commit `.build/`, `Mangla.app`, `dist/`, `.review/`, personal paths, secrets, or private library screenshots.
 - Keep release notes in `CHANGELOG.md` under the matching version heading; CI extracts them with `Scripts/release-notes.sh`.
