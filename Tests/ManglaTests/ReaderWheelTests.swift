@@ -5,14 +5,15 @@ import XCTest
 
 final class ReaderWheelTests: XCTestCase {
     private func event(_ wheel1: Int32, modifier: CGEventFlags = []) throws -> NSEvent {
-        let cg = try XCTUnwrap(CGEvent(
-            scrollWheelEvent2Source: nil,
-            units: .line,
-            wheelCount: 1,
-            wheel1: wheel1,
-            wheel2: 0,
-            wheel3: 0
-        ))
+        let cg = try XCTUnwrap(
+            CGEvent(
+                scrollWheelEvent2Source: nil,
+                units: .line,
+                wheelCount: 1,
+                wheel1: wheel1,
+                wheel2: 0,
+                wheel3: 0
+            ))
         cg.flags = modifier
         return try XCTUnwrap(NSEvent(cgEvent: cg))
     }

@@ -47,7 +47,7 @@ final class ReadingSessionTests: XCTestCase {
             directoryURL: URL(fileURLWithPath: "/tmp/\(id)"),
             pages: [
                 PageItem(url: URL(fileURLWithPath: "/tmp/\(id)/1.jpg")),
-                PageItem(url: URL(fileURLWithPath: "/tmp/\(id)/2.jpg"))
+                PageItem(url: URL(fileURLWithPath: "/tmp/\(id)/2.jpg")),
             ]
         )
     }

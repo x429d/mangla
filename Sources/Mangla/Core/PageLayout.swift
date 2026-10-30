@@ -84,12 +84,13 @@ enum PageLayoutCalculator {
         for (index, width) in widths.enumerated() {
             let scaledWidth = width * safeScale
             let scaledHeight = heights[index] * safeScale
-            pageRects.append(CGRect(
-                x: x,
-                y: (surfaceHeight - scaledHeight) / 2,
-                width: scaledWidth,
-                height: scaledHeight
-            ))
+            pageRects.append(
+                CGRect(
+                    x: x,
+                    y: (surfaceHeight - scaledHeight) / 2,
+                    width: scaledWidth,
+                    height: scaledHeight
+                ))
             x += scaledWidth + gap * safeScale
         }
 

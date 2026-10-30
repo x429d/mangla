@@ -26,22 +26,24 @@ final class ImagePrefetcherTests: XCTestCase {
 
     private func writePNG(to url: URL) throws {
         let colorSpace = try XCTUnwrap(CGColorSpace(name: CGColorSpace.sRGB))
-        let context = try XCTUnwrap(CGContext(
-            data: nil,
-            width: 4,
-            height: 4,
-            bitsPerComponent: 8,
-            bytesPerRow: 0,
-            space: colorSpace,
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ))
+        let context = try XCTUnwrap(
+            CGContext(
+                data: nil,
+                width: 4,
+                height: 4,
+                bitsPerComponent: 8,
+                bytesPerRow: 0,
+                space: colorSpace,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ))
         let image = try XCTUnwrap(context.makeImage())
-        let destination = try XCTUnwrap(CGImageDestinationCreateWithURL(
-            url as CFURL,
-            UTType.png.identifier as CFString,
-            1,
-            nil
-        ))
+        let destination = try XCTUnwrap(
+            CGImageDestinationCreateWithURL(
+                url as CFURL,
+                UTType.png.identifier as CFString,
+                1,
+                nil
+            ))
         CGImageDestinationAddImage(destination, image, nil)
         XCTAssertTrue(CGImageDestinationFinalize(destination))
     }

@@ -80,7 +80,8 @@ struct StateStore: Sendable {
         guard fileManager.fileExists(atPath: stateURL.path) else { return nil }
 
         if let data = try? Data(contentsOf: stateURL),
-           let state = StatePersistence.decode(data) {
+            let state = StatePersistence.decode(data)
+        {
             return state
         }
 
@@ -88,7 +89,8 @@ struct StateStore: Sendable {
         quarantineCorruptState()
 
         guard let backupData = try? Data(contentsOf: backupURL),
-              let backup = StatePersistence.decode(backupData) else {
+            let backup = StatePersistence.decode(backupData)
+        else {
             StatePersistence.logger.error("state.json.bak is missing or unreadable")
             return nil
         }
@@ -111,8 +113,9 @@ struct StateStore: Sendable {
         // Keep the previous good file as a fallback. The primary file is only
         // replaced atomically below, so a crash here leaves a valid state.json.
         if fileManager.fileExists(atPath: stateURL.path),
-           let existing = try? Data(contentsOf: stateURL),
-           StatePersistence.decode(existing) != nil {
+            let existing = try? Data(contentsOf: stateURL),
+            StatePersistence.decode(existing) != nil
+        {
             do {
                 if fileManager.fileExists(atPath: backupURL.path) {
                     try fileManager.removeItem(at: backupURL)
@@ -146,7 +149,8 @@ enum StatePersistence {
     static let logger = Logger(subsystem: "com.mangla.reader", category: "state")
 
     static var directoryURL: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        let base =
+            FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support")
         return base.appendingPathComponent("Mangla", isDirectory: true)
     }
@@ -238,7 +242,8 @@ enum SecurityBookmark {
                 relativeTo: nil
             )
         } catch {
-            logger.debug("Security-scoped bookmark failed for \(url.path, privacy: .public): \(error.localizedDescription)")
+            logger.debug(
+                "Security-scoped bookmark failed for \(url.path, privacy: .public): \(error.localizedDescription)")
         }
 
         do {
@@ -309,7 +314,8 @@ enum ReaderPreferences {
     static var layoutMode: LayoutMode {
         get {
             guard let raw = AppDefaults.shared.string(forKey: layoutKey),
-                  let value = LayoutMode(rawValue: raw) else { return .single }
+                let value = LayoutMode(rawValue: raw)
+            else { return .single }
             return value
         }
         set { AppDefaults.shared.set(newValue.rawValue, forKey: layoutKey) }
@@ -318,7 +324,8 @@ enum ReaderPreferences {
     static var fitMode: FitMode {
         get {
             guard let raw = AppDefaults.shared.string(forKey: fitKey),
-                  let value = FitMode(rawValue: raw) else { return .fitHeight }
+                let value = FitMode(rawValue: raw)
+            else { return .fitHeight }
             return value
         }
         set { AppDefaults.shared.set(newValue.rawValue, forKey: fitKey) }
@@ -327,7 +334,8 @@ enum ReaderPreferences {
     static var direction: ReadingDirection {
         get {
             guard let raw = AppDefaults.shared.string(forKey: directionKey),
-                  let value = ReadingDirection(rawValue: raw) else { return .rtl }
+                let value = ReadingDirection(rawValue: raw)
+            else { return .rtl }
             return value
         }
         set { AppDefaults.shared.set(newValue.rawValue, forKey: directionKey) }

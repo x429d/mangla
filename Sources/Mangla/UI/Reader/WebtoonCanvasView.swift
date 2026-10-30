@@ -290,7 +290,8 @@ struct WebtoonCanvasRepresentable: NSViewRepresentable {
 
         private func loadPage(_ index: Int) {
             guard pageViews.indices.contains(index),
-                  session.pageSlots.indices.contains(index) else { return }
+                session.pageSlots.indices.contains(index)
+            else { return }
             let view = pageViews[index]
             let slot = session.pageSlots[index]
             if view.hasImage || view.isLoading { return }
@@ -303,15 +304,17 @@ struct WebtoonCanvasRepresentable: NSViewRepresentable {
                     guard !Task.isCancelled else { return }
                     guard let self, self.generation == generation else { return }
                     guard let view,
-                          self.pageViews.indices.contains(index),
-                          self.pageViews[index] === view else { return }
+                        self.pageViews.indices.contains(index),
+                        self.pageViews[index] === view
+                    else { return }
                     view.show(image: image)
                 } catch {
                     guard !Task.isCancelled else { return }
                     guard let self, self.generation == generation else { return }
                     guard let view,
-                          self.pageViews.indices.contains(index),
-                          self.pageViews[index] === view else { return }
+                        self.pageViews.indices.contains(index),
+                        self.pageViews[index] === view
+                    else { return }
                     view.showError()
                 }
             }
@@ -322,8 +325,9 @@ struct WebtoonCanvasRepresentable: NSViewRepresentable {
 
         private func handleClick(_ event: NSEvent) {
             guard !session.isLoadingChapter,
-                  !session.isHelpVisible,
-                  !session.isPageEntryVisible else { return }
+                !session.isHelpVisible,
+                !session.isPageEntryVisible
+            else { return }
             scrollView?.window?.makeFirstResponder(scrollView)
             guard let scrollView else { return }
 
@@ -378,8 +382,9 @@ struct WebtoonCanvasRepresentable: NSViewRepresentable {
 
         private func handlePageStep(_ forward: Bool) {
             guard !session.isLoadingChapter,
-                  !session.isHelpVisible,
-                  !session.isPageEntryVisible else { return }
+                !session.isHelpVisible,
+                !session.isPageEntryVisible
+            else { return }
             scrollView?.window?.makeFirstResponder(scrollView)
             if forward {
                 session.next()

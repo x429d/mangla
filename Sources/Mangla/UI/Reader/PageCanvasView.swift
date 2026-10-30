@@ -111,7 +111,8 @@ struct PageCanvasRepresentable: NSViewRepresentable {
             let newPageIndex = session.currentPageIndex
             let movingForward: Bool?
             if slotsChanged, !currentURLs.isEmpty,
-               let last = lastRenderedPageIndex, newPageIndex != last {
+                let last = lastRenderedPageIndex, newPageIndex != last
+            {
                 movingForward = newPageIndex > last
             } else {
                 movingForward = nil
@@ -200,15 +201,17 @@ struct PageCanvasRepresentable: NSViewRepresentable {
                         guard !Task.isCancelled else { return }
                         guard let self, self.generation == generation else { return }
                         guard let view,
-                              self.pageViews.indices.contains(index),
-                              self.pageViews[index] === view else { return }
+                            self.pageViews.indices.contains(index),
+                            self.pageViews[index] === view
+                        else { return }
                         view.show(image: image)
                     } catch {
                         guard !Task.isCancelled else { return }
                         guard let self, self.generation == generation else { return }
                         guard let view,
-                              self.pageViews.indices.contains(index),
-                              self.pageViews[index] === view else { return }
+                            self.pageViews.indices.contains(index),
+                            self.pageViews[index] === view
+                        else { return }
                         view.showError()
                     }
                 }
@@ -236,8 +239,9 @@ struct PageCanvasRepresentable: NSViewRepresentable {
 
         private func handleClick(_ event: NSEvent) {
             guard !session.isLoadingChapter,
-                  !session.isHelpVisible,
-                  !session.isPageEntryVisible else { return }
+                !session.isHelpVisible,
+                !session.isPageEntryVisible
+            else { return }
             scrollView?.window?.makeFirstResponder(scrollView)
             guard let scrollView else { return }
 
@@ -308,9 +312,10 @@ struct PageCanvasRepresentable: NSViewRepresentable {
 
         private func handleSwipe(_ delta: CGFloat) {
             guard scrollView?.pageSwipeEnabled == true,
-                  !session.isLoadingChapter,
-                  !session.isHelpVisible,
-                  !session.isPageEntryVisible else { return }
+                !session.isLoadingChapter,
+                !session.isHelpVisible,
+                !session.isPageEntryVisible
+            else { return }
             let forward = session.direction == .rtl ? delta > 0 : delta < 0
             if forward {
                 session.next()
@@ -321,8 +326,9 @@ struct PageCanvasRepresentable: NSViewRepresentable {
 
         private func handlePageStep(_ forward: Bool) {
             guard !session.isLoadingChapter,
-                  !session.isHelpVisible,
-                  !session.isPageEntryVisible else { return }
+                !session.isHelpVisible,
+                !session.isPageEntryVisible
+            else { return }
             scrollView?.window?.makeFirstResponder(scrollView)
             if forward {
                 session.next()

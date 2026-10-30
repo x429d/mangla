@@ -4,18 +4,15 @@ import XCTest
 @testable import Mangla
 
 final class LibraryScannerTests: XCTestCase {
-    private var root: URL!
+    private let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("ManglaTests-\(UUID().uuidString)", isDirectory: true)
 
     override func setUpWithError() throws {
-        root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("ManglaTests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     }
 
     override func tearDownWithError() throws {
-        if let root {
-            try? FileManager.default.removeItem(at: root)
-        }
+        try? FileManager.default.removeItem(at: root)
     }
 
     func testNaturalSortIgnoresExtension() throws {
@@ -66,7 +63,8 @@ final class LibraryScannerTests: XCTestCase {
 
     func testChapterNestedDeeperThanTheProbeLimitIsFound() throws {
         let manga = root.appendingPathComponent("Deep", isDirectory: true)
-        let chapter = manga
+        let chapter =
+            manga
             .appendingPathComponent("Part 1", isDirectory: true)
             .appendingPathComponent("Part 2", isDirectory: true)
             .appendingPathComponent("Part 3", isDirectory: true)
@@ -97,7 +95,8 @@ final class LibraryScannerTests: XCTestCase {
 
 final class SpreadBuilderTests: XCTestCase {
     private func page(_ width: CGFloat, _ height: CGFloat) -> PageSlot {
-        PageSlot(url: URL(fileURLWithPath: "/tmp/\(UUID().uuidString).jpg"), pixelSize: CGSize(width: width, height: height))
+        PageSlot(
+            url: URL(fileURLWithPath: "/tmp/\(UUID().uuidString).jpg"), pixelSize: CGSize(width: width, height: height))
     }
 
     func testWideScanKeepsParity() {
@@ -107,7 +106,7 @@ final class SpreadBuilderTests: XCTestCase {
             page(2000, 1200),
             page(1000, 1500),
             page(1000, 1500),
-            page(1000, 1500)
+            page(1000, 1500),
         ]
         let spreads = SpreadBuilder.spreads(pages: pages, mode: .spread)
         XCTAssertEqual(spreads.map(\.pageIndices), [[0, 1], [2], [3, 4], [5]])

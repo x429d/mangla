@@ -364,7 +364,8 @@ extension LocKey {
         .helpClose: "Close (Esc)",
         .helpKeyboard: "KEYBOARD",
         .helpMouse: "MOUSE & TRACKPAD",
-        .helpFooter: "In RTL, arrows and click zones are mirrored. Keys are read by physical position, so the layout doesn't matter.",
+        .helpFooter:
+            "In RTL, arrows and click zones are mirrored. Keys are read by physical position, so the layout doesn't matter.",
         .helpPageBackForward: "Page back / forward",
         .helpPageReadingOrder: "Same in reading order",
         .helpScreenForward: "Screen or page forward",
@@ -480,7 +481,8 @@ extension LocKey {
         .menuHelp: "Справка",
         .menuReaderControls: "Управление читалкой",
         .welcomeTagline: "Тихая, быстрая читалка манги для macOS",
-        .welcomeDescription: "Добавьте одну или несколько папок-коллекций — приложение будет держать их открытыми одновременно.",
+        .welcomeDescription:
+            "Добавьте одну или несколько папок-коллекций — приложение будет держать их открытыми одновременно.",
         .welcomeHowItWorks: "Как это работает",
         .welcomeFooter: "Нативный AppKit · ProMotion",
         .structureCollection: "Коллекция",
@@ -564,7 +566,8 @@ extension LocKey {
         .helpClose: "Закрыть (Esc)",
         .helpKeyboard: "КЛАВИАТУРА",
         .helpMouse: "МЫШЬ И ТРЕКПАД",
-        .helpFooter: "В RTL стрелки и клик-зоны зеркальны. Нажатия читаются по физическим клавишам, поэтому раскладка не важна.",
+        .helpFooter:
+            "В RTL стрелки и клик-зоны зеркальны. Нажатия читаются по физическим клавишам, поэтому раскладка не важна.",
         .helpPageBackForward: "Страница назад / вперёд",
         .helpPageReadingOrder: "То же в порядке чтения",
         .helpScreenForward: "Экран или страница вперёд",

@@ -42,8 +42,9 @@ class CanvasSurfaceView: NSView {
 
     override func mouseDragged(with event: NSEvent) {
         guard isPanEnabled,
-              let start = mouseDownLocation,
-              let last = lastDragLocation else { return }
+            let start = mouseDownLocation,
+            let last = lastDragLocation
+        else { return }
 
         let point = event.locationInWindow
         if !isDragging {
@@ -373,12 +374,13 @@ final class ReaderScrollView: NSScrollView {
         for area in trackingAreas where area.owner === self {
             removeTrackingArea(area)
         }
-        addTrackingArea(NSTrackingArea(
-            rect: .zero,
-            options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
-            owner: self,
-            userInfo: nil
-        ))
+        addTrackingArea(
+            NSTrackingArea(
+                rect: .zero,
+                options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+                owner: self,
+                userInfo: nil
+            ))
     }
 
     override func mouseMoved(with event: NSEvent) {

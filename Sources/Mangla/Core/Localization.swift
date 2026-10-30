@@ -18,7 +18,8 @@ enum AppLanguage: String, CaseIterable, Sendable {
     /// screenshots without touching System Settings.
     static var system: AppLanguage {
         if let override = ProcessInfo.processInfo.environment["MANGLA_LANGUAGE"],
-           let language = AppLanguage(rawValue: override.lowercased()) {
+            let language = AppLanguage(rawValue: override.lowercased())
+        {
             return language
         }
         return resolve(preferred: Locale.preferredLanguages)
@@ -26,7 +27,8 @@ enum AppLanguage: String, CaseIterable, Sendable {
 
     static func resolve(preferred identifiers: [String]) -> AppLanguage {
         for identifier in identifiers {
-            let code = Locale(identifier: identifier).language.languageCode?.identifier
+            let code =
+                Locale(identifier: identifier).language.languageCode?.identifier
                 ?? identifier.split(separator: "-").first.map(String.init)
                 ?? identifier
             if let language = AppLanguage(rawValue: code.lowercased()) {

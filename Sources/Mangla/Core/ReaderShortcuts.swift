@@ -68,73 +68,73 @@ enum ReaderShortcuts {
         }
 
         switch keyCode {
-        case 53: // Esc
+        case 53:  // Esc
             return .close
-        case 123: // Left
+        case 123:  // Left
             return .pageLeft
-        case 124: // Right
+        case 124:  // Right
             return .pageRight
-        case 125: // Down — page mode flips, webtoon keeps native scrolling
+        case 125:  // Down — page mode flips, webtoon keeps native scrolling
             return layoutMode == .webtoon ? nil : .screenForward
-        case 126: // Up
+        case 126:  // Up
             return layoutMode == .webtoon ? nil : .screenBackward
-        case 0: // A
+        case 0:  // A
             return .pageLeft
-        case 2: // D
+        case 2:  // D
             return .pageRight
-        case 38: // J
+        case 38:  // J
             return .pageForward
-        case 40: // K
+        case 40:  // K
             return .pageBackward
-        case 43: // ,
+        case 43:  // ,
             return .pageBackward
-        case 47: // .
+        case 47:  // .
             return .pageForward
-        case 49: // Space
+        case 49:  // Space
             return flags.contains(.shift) ? .screenBackward : .screenForward
-        case 121: // Page Down
+        case 121:  // Page Down
             return .screenForward
-        case 116: // Page Up
+        case 116:  // Page Up
             return .screenBackward
-        case 115: // Home
+        case 115:  // Home
             return .firstPage
-        case 119: // End
+        case 119:  // End
             return .lastPage
-        case 33: // [
+        case 33:  // [
             return .chapterBackward
-        case 30: // ]
+        case 30:  // ]
             return .chapterForward
-        case 18: // 1
+        case 18:  // 1
             return .layout(.single)
-        case 19: // 2
+        case 19:  // 2
             return .layout(.spread)
-        case 20: // 3
+        case 20:  // 3
             return .layout(.webtoon)
-        case 17: // T
+        case 17:  // T
             return layoutMode == .webtoon ? nil : .toggleDirection
-        case 4: // H
+        case 4:  // H
             return layoutMode == .webtoon ? nil : .fit(.fitHeight)
-        case 13: // W
+        case 13:  // W
             return layoutMode == .webtoon ? nil : .fit(.fitWidth)
-        case 31: // O
+        case 31:  // O
             return layoutMode == .webtoon ? nil : .fit(.original)
-        case 3: // F
+        case 3:  // F
             return .toggleFullScreen
-        case 5: // G
+        case 5:  // G
             return .pageEntry
-        case 29: // 0
+        case 29:  // 0
             return .resetZoom
-        case 27: // -
+        case 27:  // -
             return .zoomOut
-        case 24: // =
+        case 24:  // =
             return .zoomIn
-        case 69: // keypad +
+        case 69:  // keypad +
             return .zoomIn
-        case 78: // keypad -
+        case 78:  // keypad -
             return .zoomOut
-        case 44: // / (US layout)
+        case 44:  // / (US layout)
             return .toggleHelp
-        case 26: // 7 — Shift+7 is ? on a Russian layout
+        case 26:  // 7 — Shift+7 is ? on a Russian layout
             return flags.contains(.shift) ? .toggleHelp : nil
         default:
             return nil

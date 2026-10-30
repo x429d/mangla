@@ -205,8 +205,9 @@ final class AppModel {
 
             // Migrate the old single-project bookmark when possible.
             if bookmark == nil,
-               let legacy = LegacyWorkspaceBookmark.resolveSaved(),
-               canonicalPath(legacy) == canonicalPath(fallback) || (!available && records.count == 1) {
+                let legacy = LegacyWorkspaceBookmark.resolveSaved(),
+                canonicalPath(legacy) == canonicalPath(fallback) || (!available && records.count == 1)
+            {
                 resolved = legacy
                 available = isDirectory(legacy)
                 bookmark = SecurityBookmark.make(for: legacy)
@@ -504,7 +505,8 @@ final class AppModel {
         }
 
         if let last = collections[index].lastMangaID,
-           !snapshot.mangas.contains(where: { $0.id == last }) {
+            !snapshot.mangas.contains(where: { $0.id == last })
+        {
             collections[index].lastMangaID = snapshot.mangas.first?.id
         }
 
@@ -669,7 +671,8 @@ final class AppModel {
     func resumeChapter(for manga: MangaItem) -> ChapterItem? {
         guard !manga.chapters.isEmpty else { return nil }
         if let id = progress[manga.id]?.lastChapterID,
-           let chapter = manga.chapters.first(where: { $0.id == id }) {
+            let chapter = manga.chapters.first(where: { $0.id == id })
+        {
             return chapter
         }
         return manga.chapters.first
@@ -857,7 +860,8 @@ final class AppModel {
         let manga = mangas[mangaIndex]
 
         if let chapterIndex = manga.chapters.firstIndex(where: { $0.id == chapterID }),
-           chapterIndex + 1 < manga.chapters.count {
+            chapterIndex + 1 < manga.chapters.count
+        {
             return (manga, manga.chapters[chapterIndex + 1])
         }
 
@@ -877,7 +881,8 @@ final class AppModel {
         let manga = mangas[mangaIndex]
 
         if let chapterIndex = manga.chapters.firstIndex(where: { $0.id == chapterID }),
-           chapterIndex > 0 {
+            chapterIndex > 0
+        {
             return (manga, manga.chapters[chapterIndex - 1])
         }
 

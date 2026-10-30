@@ -24,13 +24,13 @@ enum LibraryScanError: LocalizedError {
 /// images becomes one chapter, containers are walked recursively.
 enum LibraryScanner {
     static let imageExtensions: Set<String> = [
-        "webp", "jpg", "jpeg", "png", "avif", "heic"
+        "webp", "jpg", "jpeg", "png", "avif", "heic",
     ]
 
     private static let maxDepth = 8
     private static let logger = Logger(subsystem: "com.mangla.reader", category: "scanner")
     private static let resourceKeys: Set<URLResourceKey> = [
-        .isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey, .nameKey
+        .isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey, .nameKey,
     ]
 
     // MARK: - Public API
@@ -52,7 +52,8 @@ enum LibraryScanner {
         var mangas: [MangaItem] = []
 
         // The selected folder may itself be a single manga folder.
-        let rootIsManga = !directImages.isEmpty
+        let rootIsManga =
+            !directImages.isEmpty
             && !subdirectories.contains(where: { containsImages(in: $0.url, depth: 0) })
 
         if rootIsManga {
@@ -115,10 +116,12 @@ enum LibraryScanner {
         }
 
         let entries = listing(of: directory)
-        let images = entries
+        let images =
+            entries
             .filter { isImageFile($0.url) }
             .sorted(by: pageOrder)
-        let subdirectories = entries
+        let subdirectories =
+            entries
             .filter { $0.isDirectory && !$0.isSymlink }
             .sorted(by: entryOrder)
 
@@ -130,7 +133,8 @@ enum LibraryScanner {
         // manga root with a loose cover: treat it as a container. A real
         // chapter folder with many pages and an "extras" subfolder stays a
         // chapter.
-        let directoryIsChapter = !images.isEmpty
+        let directoryIsChapter =
+            !images.isEmpty
             && (subdirectoriesWithImages.isEmpty || images.count >= 3)
 
         if directoryIsChapter {
@@ -149,12 +153,13 @@ enum LibraryScanner {
 
         var chapters: [ChapterItem] = []
         for subdirectory in subdirectoriesWithImages {
-            chapters.append(contentsOf: collectChapters(
-                in: subdirectory.url,
-                mangaRoot: mangaRoot,
-                projectRoot: projectRoot,
-                depth: depth + 1
-            ))
+            chapters.append(
+                contentsOf: collectChapters(
+                    in: subdirectory.url,
+                    mangaRoot: mangaRoot,
+                    projectRoot: projectRoot,
+                    depth: depth + 1
+                ))
         }
         return chapters
     }
@@ -191,7 +196,8 @@ enum LibraryScanner {
                     isSymlink: values.isSymbolicLink ?? false
                 )
             } catch {
-                logger.debug("Could not read attributes for \(url.path, privacy: .public): \(error.localizedDescription)")
+                logger.debug(
+                    "Could not read attributes for \(url.path, privacy: .public): \(error.localizedDescription)")
                 return nil
             }
         }
@@ -232,7 +238,8 @@ enum LibraryScanner {
         let baseComponents = base.standardizedFileURL.pathComponents
         let components = url.standardizedFileURL.pathComponents
         guard components.count > baseComponents.count,
-              Array(components.prefix(baseComponents.count)) == baseComponents else {
+            Array(components.prefix(baseComponents.count)) == baseComponents
+        else {
             return ""
         }
         return components.dropFirst(baseComponents.count).joined(separator: "/")

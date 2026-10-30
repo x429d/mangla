@@ -27,7 +27,7 @@ final class AppModelCollectionTests: XCTestCase {
                 isAvailable: true,
                 lastMangaID: nil,
                 bookmark: nil
-            )
+            ),
         ]
 
         model.selectedCollectionID = firstID

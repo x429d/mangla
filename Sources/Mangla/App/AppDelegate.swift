@@ -202,7 +202,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         // (⌘Q, ⌘W, ⌘H…) still work.
         if session.isHelpVisible {
             if event.keyCode == 53
-                || ReaderShortcuts.isHelpKey(keyCode: event.keyCode, modifiers: flags) {
+                || ReaderShortcuts.isHelpKey(keyCode: event.keyCode, modifiers: flags)
+            {
                 session.hideHelp()
                 return true
             }
@@ -212,11 +213,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             return true
         }
 
-        guard let command = ReaderShortcuts.command(
-            keyCode: event.keyCode,
-            modifiers: flags,
-            layoutMode: session.layoutMode
-        ) else {
+        guard
+            let command = ReaderShortcuts.command(
+                keyCode: event.keyCode,
+                modifiers: flags,
+                layoutMode: session.layoutMode
+            )
+        else {
             return false
         }
 
@@ -288,7 +291,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         let appMenu = NSMenu()
         appMenuItem.submenu = appMenu
 
-        appMenu.addItem(withTitle: t(.menuAbout), action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        appMenu.addItem(
+            withTitle: t(.menuAbout), action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
+            keyEquivalent: "")
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: t(.menuHide), action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         let hideOthers = NSMenuItem(
@@ -298,7 +303,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         )
         hideOthers.keyEquivalentModifierMask = [.command, .option]
         appMenu.addItem(hideOthers)
-        appMenu.addItem(withTitle: t(.menuShowAll), action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
+        appMenu.addItem(
+            withTitle: t(.menuShowAll), action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: t(.menuQuit), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
 
@@ -352,8 +358,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         mainMenu.addItem(windowMenuItem)
         let windowMenu = NSMenu(title: t(.menuWindow))
         windowMenuItem.submenu = windowMenu
-        windowMenu.addItem(withTitle: t(.minimizeWindow), action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
-        windowMenu.addItem(withTitle: t(.menuWindowZoom), action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
+        windowMenu.addItem(
+            withTitle: t(.minimizeWindow), action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        windowMenu.addItem(
+            withTitle: t(.menuWindowZoom), action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
         NSApp.windowsMenu = windowMenu
 
         let helpMenuItem = NSMenuItem()
@@ -412,8 +420,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         case #selector(zoomIn(_:)), #selector(zoomOut(_:)), #selector(resetZoom(_:)):
             return model.reading != nil
         case #selector(readingPreviousPage(_:)), #selector(readingNextPage(_:)),
-             #selector(readingPreviousChapter(_:)), #selector(readingNextChapter(_:)),
-             #selector(readingGoToPage(_:)), #selector(readingShowHelp(_:)):
+            #selector(readingPreviousChapter(_:)), #selector(readingNextChapter(_:)),
+            #selector(readingGoToPage(_:)), #selector(readingShowHelp(_:)):
             return model.reading != nil
         case #selector(toggleSidebar(_:)):
             return model.reading == nil && !model.collections.isEmpty

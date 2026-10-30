@@ -256,11 +256,13 @@ struct ProgressTrack: View {
             ZStack(alignment: .leading) {
                 Capsule().fill(Color.white.opacity(0.10))
                 Capsule()
-                    .fill(LinearGradient(
-                        colors: [Theme.accentSoft, Theme.accent],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    ))
+                    .fill(
+                        LinearGradient(
+                            colors: [Theme.accentSoft, Theme.accent],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
                     .frame(width: max(0, min(1, fraction)) * geo.size.width)
             }
         }
@@ -334,7 +336,7 @@ struct TitlePlaceholder: View {
             LinearGradient(
                 colors: [
                     Color(hue: hue, saturation: 0.42, brightness: 0.30),
-                    Color(hue: (hue + 0.06).truncatingRemainder(dividingBy: 1), saturation: 0.5, brightness: 0.14)
+                    Color(hue: (hue + 0.06).truncatingRemainder(dividingBy: 1), saturation: 0.5, brightness: 0.14),
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing

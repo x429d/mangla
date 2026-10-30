@@ -123,10 +123,11 @@ struct WelcomeView: View {
                 if showStructure {
                     StructureExplainer()
                         .padding(.top, 30)
-                        .transition(.asymmetric(
-                            insertion: .opacity.combined(with: .move(edge: .top)),
-                            removal: .opacity
-                        ))
+                        .transition(
+                            .asymmetric(
+                                insertion: .opacity.combined(with: .move(edge: .top)),
+                                removal: .opacity
+                            ))
                 } else {
                     HStack(spacing: 8) {
                         ForEach(["WEBP", "JPG", "PNG", "AVIF", "HEIC"], id: \.self) { format in
@@ -243,11 +244,13 @@ struct EmptyCollectionView: View {
                     .rotationEffect(.degrees(5))
                     .offset(x: 14, y: 2)
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(LinearGradient(
-                        colors: [Theme.accent.opacity(0.9), Theme.accent.opacity(0.5)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ))
+                    .fill(
+                        LinearGradient(
+                            colors: [Theme.accent.opacity(0.9), Theme.accent.opacity(0.5)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
                     .frame(width: 92, height: 118)
                     .overlay(
                         Image(systemName: "folder.fill")

@@ -44,7 +44,7 @@ enum ImageDecoder {
         let options: [CFString: Any] = [
             kCGImageSourceShouldCacheImmediately: true,
             kCGImageSourceShouldAllowFloat: false,
-            kCGImageSourceShouldCache: true
+            kCGImageSourceShouldCache: true,
         ]
         guard let image = CGImageSourceCreateImageAtIndex(source, 0, options as CFDictionary) else {
             throw ImageDecodingError.cannotDecode(url)
@@ -59,7 +59,7 @@ enum ImageDecoder {
             kCGImageSourceCreateThumbnailWithTransform: true,
             kCGImageSourceThumbnailMaxPixelSize: maxPixel,
             kCGImageSourceShouldCacheImmediately: true,
-            kCGImageSourceShouldAllowFloat: false
+            kCGImageSourceShouldAllowFloat: false,
         ]
         return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
     }

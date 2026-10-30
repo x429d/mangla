@@ -118,7 +118,7 @@ struct LibraryGridView: View {
             model.filter.rawValue,
             model.searchText,
             String(model.currentPage),
-            String(model.filteredMangas.count)
+            String(model.filteredMangas.count),
         ].joined(separator: "|")
     }
 
@@ -129,9 +129,10 @@ struct LibraryGridView: View {
                 header
 
                 if model.currentPage == 0,
-                   let target = model.continueTarget,
-                   model.searchText.isEmpty,
-                   model.filter == .all {
+                    let target = model.continueTarget,
+                    model.searchText.isEmpty,
+                    model.filter == .all
+                {
                     ContinueBanner(
                         manga: target.manga,
                         chapter: target.chapter,

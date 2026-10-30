@@ -17,16 +17,24 @@ let output = URL(
 // MARK: - Canvas
 
 let side: CGFloat = 1024
-let space = CGColorSpace(name: CGColorSpace.sRGB)!
-let ctx = CGContext(
-    data: nil,
-    width: Int(side),
-    height: Int(side),
-    bitsPerComponent: 8,
-    bytesPerRow: 0,
-    space: space,
-    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-)!
+guard let space = CGColorSpace(name: CGColorSpace.sRGB) else {
+    FileHandle.standardError.write(Data("error: could not create the sRGB color space\n".utf8))
+    exit(1)
+}
+guard
+    let ctx = CGContext(
+        data: nil,
+        width: Int(side),
+        height: Int(side),
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: space,
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    )
+else {
+    FileHandle.standardError.write(Data("error: could not create the icon canvas\n".utf8))
+    exit(1)
+}
 
 ctx.setShouldAntialias(true)
 ctx.setAllowsAntialiasing(true)
@@ -141,11 +149,17 @@ let mShadow = color(0x3B2410, 0.20)
 // MARK: - Gradients
 
 func linearGradient(_ stops: [(CGFloat, CGColor)]) -> CGGradient {
-    CGGradient(
-        colorsSpace: space,
-        colors: stops.map(\.1) as CFArray,
-        locations: stops.map(\.0)
-    )!
+    guard
+        let gradient = CGGradient(
+            colorsSpace: space,
+            colors: stops.map(\.1) as CFArray,
+            locations: stops.map(\.0)
+        )
+    else {
+        FileHandle.standardError.write(Data("error: could not create a gradient\n".utf8))
+        exit(1)
+    }
+    return gradient
 }
 
 func fillLinear(
@@ -167,24 +181,24 @@ func fillLinear(
 }
 
 let paperGradient = linearGradient([
-    (0.00, paperTop), (0.30, paperUpper), (0.66, paperMid), (1.00, paperBottom)
+    (0.00, paperTop), (0.30, paperUpper), (0.66, paperMid), (1.00, paperBottom),
 ])
 let inkGradient = linearGradient([
-    (0.00, inkTop), (0.45, inkMid), (1.00, inkBottom)
+    (0.00, inkTop), (0.45, inkMid), (1.00, inkBottom),
 ])
 let obiGradient = linearGradient([
-    (0.00, obiTop), (0.42, obiMid), (1.00, obiBottom)
+    (0.00, obiTop), (0.42, obiMid), (1.00, obiBottom),
 ])
 let obiShadeGradient = linearGradient([
-    (0.00, color(0x5C1204, 0.30)), (1.00, color(0x5C1204, 0.00))
+    (0.00, color(0x5C1204, 0.30)), (1.00, color(0x5C1204, 0.00)),
 ])
 let paperShadeGradient = linearGradient([
-    (0.55, color(0x8A6A3E, 0.00)), (1.00, paperShade)
+    (0.55, color(0x8A6A3E, 0.00)), (1.00, paperShade),
 ])
 let rimGradient = linearGradient([
     (0.00, color(0xFFFFFF, 0.62)),
     (0.42, color(0xFFFFFF, 0.16)),
-    (1.00, color(0xFFFFFF, 0.34))
+    (1.00, color(0xFFFFFF, 0.34)),
 ])
 
 // MARK: - Outer shadow
@@ -343,7 +357,7 @@ ctx.setLineWidth(1.5)
 ctx.strokePath()
 ctx.restoreGState()
 
-ctx.restoreGState() // end cover clip
+ctx.restoreGState()  // end cover clip
 
 // MARK: - Rim
 
@@ -372,12 +386,14 @@ guard let image = ctx.makeImage() else {
     FileHandle.standardError.write(Data("error: could not render icon\n".utf8))
     exit(1)
 }
-guard let destination = CGImageDestinationCreateWithURL(
-    output as CFURL,
-    "public.png" as CFString,
-    1,
-    nil
-) else {
+guard
+    let destination = CGImageDestinationCreateWithURL(
+        output as CFURL,
+        "public.png" as CFString,
+        1,
+        nil
+    )
+else {
     FileHandle.standardError.write(Data("error: could not create \(output.path)\n".utf8))
     exit(1)
 }
@@ -386,4 +402,4 @@ guard CGImageDestinationFinalize(destination) else {
     FileHandle.standardError.write(Data("error: could not write \(output.path)\n".utf8))
     exit(1)
 }
-print("Wrote \(output.path)")
+FileHandle.standardOutput.write(Data("Wrote \(output.path)\n".utf8))

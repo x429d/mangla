@@ -124,19 +124,22 @@ final class ReaderContextMenuController: NSObject {
 
     @objc private func setLayout(_ sender: NSMenuItem) {
         guard let raw = sender.representedObject as? String,
-              let mode = LayoutMode(rawValue: raw) else { return }
+            let mode = LayoutMode(rawValue: raw)
+        else { return }
         session.layoutMode = mode
     }
 
     @objc private func setDirection(_ sender: NSMenuItem) {
         guard let raw = sender.representedObject as? String,
-              let direction = ReadingDirection(rawValue: raw) else { return }
+            let direction = ReadingDirection(rawValue: raw)
+        else { return }
         session.direction = direction
     }
 
     @objc private func setFit(_ sender: NSMenuItem) {
         guard let raw = sender.representedObject as? String,
-              let mode = FitMode(rawValue: raw) else { return }
+            let mode = FitMode(rawValue: raw)
+        else { return }
         session.fitMode = mode
     }
 }

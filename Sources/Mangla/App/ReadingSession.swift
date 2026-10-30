@@ -178,7 +178,8 @@ final class ReadingSession {
         self.storedFitMode = ReaderPreferences.fitMode
         self.storedDirection = ReaderPreferences.direction
 
-        let resumePage = startPage
+        let resumePage =
+            startPage
             ?? model.progress[manga.id]?.chapters[chapter.id]?.pageIndex
             ?? 0
         begin(startPage: resumePage)
@@ -438,7 +439,8 @@ final class ReadingSession {
         seekRequest = WebtoonSeekRequest(id: 0, page: 0)
         loadMetadata(startPage: startPage)
 
-        let subtitle = newManga.id == previousMangaID
+        let subtitle =
+            newManga.id == previousMangaID
             ? newChapter.title
             : "\(newManga.title) · \(newChapter.title)"
         showToast(tf(.toastNextUp, subtitle))
