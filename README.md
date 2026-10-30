@@ -91,7 +91,7 @@ Reader commands are read by physical key position, so they work on non-US layout
 - Progress is keyed by folder path. Renaming a manga or chapter outside the app starts that item from zero; the collection bookmark itself can survive a move.
 - Actual Size maps one image pixel to one point. On a Retina display this is deliberately larger than one physical pixel.
 - Full-resolution pages are decoded on demand. Large scans can use hundreds of megabytes per page; the shared cache is bounded to about 700 MB and 48 images, and is released when the reader closes.
-- Library pagination is fixed at 30 manga per page.
+- Library pagination is fixed at 30 manga per page. The card context menu lists the first 40 chapters; use the reader to continue past that.
 - The app is not sandboxed and is distributed ad-hoc signed. App Sandbox, notarization, and a Developer ID are post-1.0 work.
 - One window and one `state.json` per user.
 
