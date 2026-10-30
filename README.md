@@ -5,7 +5,7 @@ A native macOS manga reader built with Swift 6, SwiftUI, and AppKit. No web view
 [![CI](https://github.com/x429d/mangla/actions/workflows/ci.yml/badge.svg)](https://github.com/x429d/mangla/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-> Screenshot placeholder: a real screenshot will be added before the first public release. It is listed as an open item in the release report.
+> Screenshot placeholder: a real capture will be added before the first public release.
 
 ## Features
 
