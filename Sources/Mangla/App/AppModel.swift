@@ -500,6 +500,7 @@ final class AppModel {
 
         collections[index].mangas = snapshot.mangas
         collections[index].isAvailable = true
+        access(snapshot.projectURL, id: id)
         if collections[index].name.isEmpty, !snapshot.name.isEmpty {
             collections[index].name = snapshot.name
         }
