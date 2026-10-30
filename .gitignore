@@ -1,4 +1,6 @@
 .build/
 .swiftpm/
+xcuserdata/
 .DS_Store
-Mangla.app/
+*.app
+dist/
