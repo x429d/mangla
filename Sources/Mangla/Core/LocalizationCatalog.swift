@@ -206,6 +206,7 @@ enum LocKey: String, CaseIterable, Sendable {
     case addCollectionsPrompt
     case alreadyAdded
     case collectionUnavailable
+    case missingProjectPath
 
     // Counted nouns
     case countPageOne
@@ -409,6 +410,7 @@ extension LocKey {
         .addCollectionsPrompt: "Add",
         .alreadyAdded: "These collections are already added.",
         .collectionUnavailable: "Collection folder is unavailable: %@",
+        .missingProjectPath: "The --project option needs a folder path.",
         .countPageOne: "page",
         .countPageFew: "pages",
         .countPageMany: "pages",
@@ -608,6 +610,7 @@ extension LocKey {
         .addCollectionsPrompt: "Добавить",
         .alreadyAdded: "Эти коллекции уже добавлены.",
         .collectionUnavailable: "Папка коллекции недоступна: %@",
+        .missingProjectPath: "Для параметра --project нужен путь к папке.",
         .countPageOne: "страница",
         .countPageFew: "страницы",
         .countPageMany: "страниц",

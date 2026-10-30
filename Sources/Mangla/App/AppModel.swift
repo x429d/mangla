@@ -148,8 +148,13 @@ final class AppModel {
             selectedID = id
         }
 
-        if let index = arguments.firstIndex(of: "--project"), index + 1 < arguments.count {
-            let url = URL(fileURLWithPath: arguments[index + 1]).standardizedFileURL
+        switch ProjectArgument.parse(arguments) {
+        case .absent:
+            break
+        case .missingValue:
+            errorMessage = t(.missingProjectPath)
+        case .path(let path):
+            let url = URL(fileURLWithPath: path).standardizedFileURL
             if isDirectory(url) {
                 if let existing = collections.first(where: { canonicalPath($0.directoryURL) == canonicalPath(url) }) {
                     selectedID = existing.id
