@@ -1,372 +1,108 @@
 # Mangla
 
-Нативная читалка манги для macOS: Swift 6, SwiftUI и AppKit, без Electron и веб-вью.
-Несколько коллекций-папок одновременно, постраничная библиотека, смешанные форматы страниц,
-нативный трекпадный зум и три режима чтения.
+A native macOS manga reader built with Swift 6, SwiftUI, and AppKit. No web view, no network access, and no writes into your manga folders.
 
-## Возможности
+[![CI](https://github.com/x429d/mangla/actions/workflows/ci.yml/badge.svg)](https://github.com/x429d/mangla/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-- **Несколько коллекций.** Приложение держит открытыми сразу несколько корневых папок.
-  Коллекции перечислены в сайдбаре, переключаются одним кликом и запоминаются между
-  запусками вместе с security-scoped bookmark.
-- **Сайдбар без дублирования.** Слева — только коллекции, поиск и фильтры для активной
-  коллекции. Список манг и глав живёт в основной области-сетке, поэтому одна и та же
-  библиотека не показывается дважды. Главы доступны через карточку и саму читалку.
-- **Пагинация.** Сетка показывает по 30 манг на страницу. В шапке — компактный
-  переключатель `‹ 2 / 17 ›`; при смене страницы список прокручивается к началу.
-  Страница сбрасывается при смене коллекции, поиска или фильтра.
-- **Сканер коллекций.** Внутри коллекции поддерживаются оба варианта вложенности:
-  `Коллекция → Манга → Страницы` и `Коллекция → Манга → Глава → Страницы`.
-  Корневая папка тоже может быть одной мангой.
-- **Смешанные форматы.** `.webp`, `.jpg`, `.jpeg`, `.png`, `.avif`, `.heic` в одной папке.
-  Страницы сортируются по имени **без расширения** через `localizedStandardCompare`:
-  `1.webp → 2.webp → 3.jpg → 10.jpg → 20.webp`.
-- **Сетка библиотеки.** Адаптивные карточки с обложками, числом страниц и глав, статусом
-  («Читаю», «Прочитано») и прогрессом. Обложка — первая страница, декодированная в
-  thumbnail через `CGImageSourceCreateThumbnailAtIndex` (без загрузки полного битмапа).
-- **Три режима чтения.**
-  - одиночная страница: вписать по высоте, по ширине или оригинальный размер;
-  - разворот из двух страниц с поддержкой RTL (манга) и LTR; широкий скан (`width > height`)
-    автоматически показывается один и не ломает чётность следующих разворотов;
-  - Webtoon: непрерывная вертикальная лента без зазоров с общим аппаратным зумом.
-- **Нативный зум AppKit.** `NSScrollView` с `allowsMagnification` (1×–5×), пинч в точку
-  курсора, инерционное панорамирование с упругими краями. Никаких `.scaleEffect` и
-  `MagnifyGesture` для страниц.
-- **Smart Zoom.** Двойной клик в средней трети (или double-tap двумя пальцами) плавно
-  приближает к точке клика до 2.5× и сбрасывает обратно к 1×. Анимация идёт по
-  `CADisplayLink`, а не таймеру.
-- **Свайпы и клик-зоны.** На масштабе 1× горизонтальный свайп двумя пальцами переключает
-  страницы; при зуме > 1× тот же жест панорамирует страницу. Левая и правая трети экрана
-  (примерно по 33%) тоже перелистывают кадры: слева — назад, справа — вперёд в LTR;
-  в RTL зеркально. Над боковыми зонами курсор становится стандартным указателем (hand),
-  в середине и над панелями — обычная стрелка.
-- **Сброс и анимация перелистывания.** При каждом переключении страницы зум возвращается
-  к 100%, скролл — к верхнему краю новой страницы, а кадр въезжает с короткой анимацией
-  0.16 с (направление учитывает RTL/LTR).
-- **Боковая панель на всю высоту.** Все элементы управления — назад, манга/глава, режим,
-  вписывание, RTL/LTR, зум, переход к странице, слайдер с превью и навигация по страницам
-  и главам — собраны в одной панели, которая занимает всю высоту окна. Она выезжает, когда
-  курсор подходит к левому краю, и скрывается, когда курсор уходит. Кнопки закрытия,
-  сворачивания и полного экрана нарисованы в верхней части окна и работают одинаково
-  в обычном и полноэкранном режиме.
-- **Управление под мышь и клавиатуру.** Колесо листает страницы, когда всё помещается,
-  иначе прокручивает; `⌘` + колесо зумит к курсору; перетаскивание панорамирует
-  увеличенную страницу; боковые кнопки мыши листают; правый клик открывает меню команд;
-  `?` — встроенная шпаргалка по всем клавишам и жестам.
-- **Прелоадер.** `actor ImagePrefetcher` с `NSCache`: декодирование в фоне через ImageIO,
-  `kCGImageSourceShouldCacheImmediately`, 4 страницы вперёд, 2 назад; спекулятивные
-  загрузки далёких страниц отменяются при быстром скролле/перелистывании.
-- **Прогресс по коллекциям.** Для каждой коллекции хранятся свои манги, главы, прогресс,
-  последняя открытая манга и позиция. Путь к папкам и bookmarks сохраняются локально.
-- **Живое обновление.** `DispatchSourceFileSystemObject` следит за корнем каждой коллекции
-  и папками манг: новая манга или глава появляется без ручного обновления. Кнопка
-  «Обновить» и `⌘R` делают рескан активной коллекции.
-- **Русский и английский интерфейс.** Меню, библиотека, читалка, шпаргалка и сообщения
-  переведены на оба языка. Язык берётся из системных настроек, английский — фоллбек
-  для всех остальных языков.
+> Screenshot placeholder: a real screenshot will be added before the first public release. It is listed as an open item in the release report.
 
-## Требования
+## Features
 
-- macOS 15 Sequoia или новее (сборка проверена на macOS 26/27, Swift 6.4, Xcode 27).
-- Xcode 16+ / Swift 6 toolchain.
-- Apple Silicon рекомендуется; приложение собирается под архитектуру хоста (на Intel — x86_64).
+- Multiple collection folders open at once, with security-scoped bookmarks.
+- Grid library with covers, reading status, filters, search, and 30 items per page.
+- Single-page, two-page spread, and continuous webtoon reading modes.
+- RTL and LTR reading directions; wide scans stay on their own spread.
+- Native AppKit zoom from 1x to 5x, anchored at the pointer, with trackpad panning.
+- Click zones, two-finger swipes, mouse side buttons, keyboard shortcuts, and a shortcut cheat sheet.
+- Per-collection progress for every manga and chapter, restored on launch.
+- English and Russian interface, selected from the system language.
+- Folder watching for new manga, chapters, and pages.
 
-## Сборка и запуск
+## Requirements
 
-### Swift Package Manager
+- macOS 15 or later.
+- Xcode 16 or later with the Swift 6 toolchain to build from source.
+
+## Install
+
+Download `Mangla-<version>-macos.zip` from [Releases](https://github.com/x429d/mangla/releases), unzip it, and move `Mangla.app` to Applications.
+
+The current build is ad-hoc signed and not notarized. On first launch, right-click the app and choose **Open**, or use **System Settings > Privacy & Security > Open Anyway**. Do not disable Gatekeeper globally.
+
+### Build from source
 
 ```bash
 swift build -c release
-swift run -c release Mangla
-```
-
-`swift run` запускает обычный исполняемый файл, но `AppDelegate` сам вызывает
-`setActivationPolicy(.regular)` и `activate`, поэтому окно получает фокус и события
-клавиатуры/трекпада.
-
-### Сборка `.app`
-
-```bash
-./Scripts/build-app.sh          # release по умолчанию
+swift test
+./Scripts/build-app.sh
 open Mangla.app
 ```
 
-Скрипт собирает релизный бинарник, складывает его в `Mangla.app` с `Info.plist`,
-иконкой и ad-hoc подписью. Папка `Mangla.app` в git не попадает.
+`Scripts/build-app.sh` reads the version from `VERSION`, writes it into `Info.plist`, and ad-hoc signs the bundle. For a debug bundle, run `./Scripts/build-app.sh debug`.
 
-Для отладки:
+## Usage
 
-```bash
-./Scripts/build-app.sh debug
+Add one or more folders with **Add Collection** (`Cmd+O`). Both layouts are supported:
+
+```text
+Collection/
+  Manga/
+    001.webp
+    002.jpg
+  Manga with chapters/
+    Chapter 01/
+      001.png
+    Chapter 02/
+      001.png
 ```
 
-### Полезные флаги для разработки
+A collection folder may itself be a single manga. Pages are sorted by name without the extension, so `1.webp`, `2.jpg`, and `10.png` stay in order. Supported extensions are `.webp`, `.jpg`, `.jpeg`, `.png`, `.avif`, and `.heic`. Hidden files, `__MACOSX`, and symlinks are ignored.
+
+Development flags:
 
 ```bash
-# добавить и выбрать коллекцию по пути, не трогая остальные
 .build/debug/Mangla --project /path/to/library
-
-# сразу открыть читалку на последней позиции активной коллекции
-.build/debug/Mangla --project /path/to/library --open-reader
-
-# принудительно включить русский или английский интерфейс
 MANGLA_LANGUAGE=ru .build/debug/Mangla --project /path/to/library
-MANGLA_LANGUAGE=en .build/debug/Mangla --project /path/to/library
 ```
 
-## Локализация
-
-Поддерживаются `en` и `ru`; английский — язык разработки и фоллбек.
-
-- При запуске приложение смотрит `Locale.preferredLanguages` и берёт первый
-  поддерживаемый язык. Если в системном списке нет ни русского, ни английского,
-  интерфейс остаётся английским. Смена языка системы применяется после перезапуска.
-- Переменная `MANGLA_LANGUAGE=en|ru` переопределяет выбор без изменения системных
-  настроек — удобно для проверки обоих переводов и скриншотов.
-- Все ключи и переводы собраны в `Sources/Mangla/Core/LocalizationCatalog.swift`.
-  Логика выбора языка и плюрализация — в `Sources/Mangla/Core/Localization.swift`.
-- Чтобы добавить язык: новый case в `AppLanguage`, новая таблица `[LocKey: String]`
-  в каталоге и строка в `Localization.table(for:)`. Пропущенный ключ автоматически
-  показывается на английском; тест `LocalizationTests` проверяет, что в
-  поставляемых таблицах нет пропусков.
-
-## Формат коллекции
-
-Каждая коллекция — обычная папка на диске. Внутри:
-
-```
-MyManga/
-├── Berserk/
-│   ├── Vol. 01/
-│   │   ├── 1.webp
-│   │   ├── 2.webp
-│   │   ├── 3.jpg
-│   │   └── 10.jpg
-│   └── Vol. 02/
-│       └── 001.png …
-├── Blue Period/
-│   ├── 1.jpg
-│   └── 2.webp
-└── Solo Leveling/
-    ├── Chapter 01/
-    │   └── 1.webp …
-    └── Chapter 02/
-        └── 1.webp …
-```
-
-Правила сканера:
-
-- папка, в которой лежат изображения, считается главой;
-- папка с подпапками-главами считается мангой;
-- корень коллекции тоже может быть одной мангой;
-- вложенность глубже двух уровней поддерживается: название главы — относительный путь;
-- скрытые файлы, `._*`, `__MACOSX` и симлинки игнорируются;
-- регистр расширений не важен.
-
-Одновременно можно добавить несколько таких папок: например, `Manga`, `Comics`,
-`OneShots`. Активная коллекция переключается в сайдбаре, остальные продолжают
-наблюдаться и обновляться в фоне.
-
-## Управление
-
-Нажмите `?` в читалке (или кнопку с вопросительным знаком в боковой панели), чтобы
-открыть шпаргалку со всеми клавишами и жестами. Там же описано управление мышью.
-
-### Клавиатура
-
-| Действие | Клавиши |
+| Action | Keys |
 | --- | --- |
-| Страница назад / вперёд (визуально) | `←` / `→`, `A` / `D` (в RTL зеркально) |
-| Страница назад / вперёд (по порядку чтения) | `,` / `.`, `K` / `J` |
-| Экран или страница вперёд / назад | `Space` / `⇧Space`, `PageDown` / `PageUp` |
-| Прокрутка (webtoon или длинная страница) / листание | `↑` / `↓` |
-| Первая / последняя страница | `Home` / `End` |
-| Предыдущая / следующая глава | `[` / `]`, `⌘←` / `⌘→` |
-| Режим: одна страница / разворот / webtoon | `1` / `2` / `3` |
-| Направление чтения | `T` |
-| Вписать по высоте / ширине / оригинал | `H` / `W` / `O` |
-| Зум: увеличить / уменьшить / сбросить | `+` / `−` / `0`, также `⌘=` / `⌘-` / `⌘0` |
-| Перейти к странице | `G`, затем номер и `Enter` |
-| Полный экран | `F` или `⌃⌘F` |
-| Шпаргалка по управлению | `?` (на русской раскладке `⇧7`) |
-| Назад в библиотеку | `Esc` или `⌘⇧W` |
-| Добавить коллекцию | `⌘O` |
-| Обновить коллекцию | `⌘R` |
-| Показать/скрыть сайдбар | `⌘\` |
-| Выход | `⌘Q` |
+| Previous / next page (visual) | `Left` / `Right`, `A` / `D` |
+| Previous / next page (reading order) | `,` / `.`, `K` / `J` |
+| Screen or page forward / back | `Space` / `Shift+Space`, `Page Down` / `Page Up` |
+| Previous / next chapter | `[` / `]`, `Cmd+Left` / `Cmd+Right` |
+| Single page / spread / webtoon | `1` / `2` / `3` |
+| Reading direction | `T` |
+| Fit height / width / actual size | `H` / `W` / `O` |
+| Zoom in / out / reset | `+` / `-` / `0` |
+| Go to page | `G`, type a number, `Enter` |
+| Full screen | `F` or `Ctrl+Cmd+F` |
+| Shortcut cheat sheet | `?` |
+| Back to library | `Esc` or `Cmd+Shift+W` |
 
-Команды чтения также доступны в меню **Чтение**. Клавиши определяются по физическому
-положению, поэтому работают в любой раскладке. Автоповтор стрелок ограничен, чтобы
-удержанная клавиша не пролистывала главу слишком быстро.
+Reader commands are read by physical key position, so they work on non-US layouts. The in-app cheat sheet lists the mouse and trackpad gestures as well.
 
-### Мышь и трекпад
+## Limitations
 
-| Действие | Жест |
-| --- | --- |
-| Страница назад / вперёд | Клик в левой / правой трети (в RTL зеркально) |
-| Страница, если всё помещается; иначе прокрутка | Колесо / вертикальный свайп |
-| Перелистывание при 100% | Горизонтальный свайп двумя пальцами |
-| Зум к курсору | `⌘` + колесо или пинч |
-| Панорама | Перетаскивание при зуме или длинной странице; два пальца при зуме |
-| Страница назад / вперёд | Боковые кнопки мыши (back / forward) |
-| 2.5× и обратно | Двойной клик в средней трети / smart magnify |
-| Меню команд | Правый клик по странице |
-| Панель | Наведение на левый край окна |
-| Быстрый переход по странице | Слайдер в боковой панели, с превью |
+- Only image folders are supported. CBZ, CBR, and PDF are not opened.
+- Chapter traversal stops at 8 folder levels. Deeper folders are skipped and the skip is logged.
+- Folder watching covers the collection root, manga folders, and up to 200 chapter folders. Larger libraries need **Refresh** (`Cmd+R`) for changes beyond the cap.
+- Progress is keyed by folder path. Renaming a manga or chapter outside the app starts that item from zero; the collection bookmark itself can survive a move.
+- Actual Size maps one image pixel to one point. On a Retina display this is deliberately larger than one physical pixel.
+- Full-resolution pages are decoded on demand. Large scans can use hundreds of megabytes per page; the shared cache is bounded to about 700 MB and 48 images, and is released when the reader closes.
+- Library pagination is fixed at 30 manga per page.
+- The app is not sandboxed and is distributed ad-hoc signed. App Sandbox, notarization, and a Developer ID are post-1.0 work.
+- One window and one `state.json` per user.
 
-Курсор над боковой зоной — указатель, в середине — стрелка; при возможности
-панорамирования — открытая ладонь, во время перетаскивания — сжатая. Правый клик
-открывает те же команды, что есть на клавиатуре и в HUD: страницы, главы, режим
-разворота, направление, вписывание, зум и полный экран.
+## Privacy
 
-При любом переключении страницы (клик, свайп, клавиши, слайдер) зум сбрасывается к
-стандартному, а новая страница показывается с верхнего края. В webtoon `Space` и
-`PageDown` прокручивают ленту на экран, а на самом конце открывают следующую главу; `↑`/`↓`
-прокручивают ленту штатно.
+Mangla makes no network requests and has no telemetry or analytics. It only reads the folders you add. State and reading progress are written to `~/Library/Application Support/Mangla/`, never into the manga folders. `state.json` is written atomically and keeps a `state.json.bak` fallback.
 
-По достижении последней страницы следующий свайп/нажатие автоматически открывает
-следующую главу или мангу **внутри активной коллекции**; внизу появляется кнопка
-«Следующая глава».
+## Architecture
 
-## Библиотека и пагинация
+`Sources/Mangla` is split into `App`, `Core`, `Models`, and `UI`. `AppModel` owns collections, scanning, progress, and persistence. `ReadingSession` owns one open chapter and its navigation state. AppKit canvases (`PageCanvasView`, `WebtoonCanvasView`) handle rendering and native magnification; SwiftUI builds the library and reader chrome. `LibraryScanner` walks the filesystem, `ImagePrefetcher` decodes off the main actor, and `StateStore` persists state. All UI types are `@MainActor`; shared value types are `Sendable`.
 
-- Сетка показывает 30 манг на страницу; в шапке отображается `страница / всего`.
-- Кнопки `‹` и `›` переключают страницы; после смены страницы сетка прокручивается к
-  заголовку.
-- Поиск и фильтры «Все / Читаю / Прочитано» относятся к активной коллекции. При смене
-  коллекции, поиска или фильтра страница сбрасывается на первую.
-- Счётчики фильтров показывают количество манг во всей активной коллекции, а не только
-  на текущей странице.
-- Карточка «Продолжить чтение» ведёт на последнюю позицию чтения активной коллекции.
-- Пагинация — только представление: сканер по-прежнему видит всю коллекцию, поиск
-  работает по всем мангам.
+## Contributing and License
 
-## Как это устроено
-
-```
-Sources/Mangla/
-├── App/
-│   ├── AppDelegate.swift      # NSApplication, окно, меню, клавиатура
-│   ├── AppModel.swift         # коллекции, сканирование, прогресс, пагинация
-│   └── ReadingSession.swift   # состояние читалки, главы, развороты, HUD, зум
-├── Core/
-│   ├── LibraryScanner.swift   # рекурсивный сканер и естественная сортировка
-│   ├── LibraryPagination.swift# чистая математика страниц
-│   ├── ImageDecoder.swift     # ImageIO: полный декод и thumbnails
-│   ├── ImagePrefetcher.swift  # actor + NSCache + отмена спекулятивных загрузок
-│   ├── ImageProviders.swift   # ThumbnailProvider, MetadataProbe, DecodeGate
-│   ├── PageLayout.swift       # расчёт разворотов и вписывания
-│   ├── Persistence.swift      # state.json v2, bookmarks, настройки
-│   ├── Localization.swift     # язык системы, en/ru, плюрализация, форматирование
-│   ├── LocalizationCatalog.swift # все строки интерфейса и переводы
-│   └── ProjectWatcher.swift   # DispatchSource-наблюдатели папок
-├── Models/
-│   └── LibraryModels.swift    # MangaCollection, MangaItem, ChapterItem, прогресс
-└── UI/
-    ├── Theme.swift            # палитра, типографика, общие компоненты
-    ├── RootView.swift         # библиотека ↔ читалка
-    ├── Library/               # сайдбар коллекций, сетка, карточки, пагинация
-    └── Reader/
-        ├── ReaderCanvas.swift        # NSScrollView, tracking, CADisplayLink-зум
-        ├── ReaderCursors.swift       # hand/arrow для клик-зон
-        ├── PageCanvasView.swift      # страница/разворот (NSViewRepresentable)
-        ├── WebtoonCanvasView.swift   # вертикальная лента
-        ├── ReaderView.swift          # полноэкранный слой, HUD, toast
-        └── ReaderHUD.swift           # боковая панель и слайдер с превью
-```
-
-### Коллекции
-
-`AppModel` хранит `[MangaCollection]`, выбранную коллекцию и прогресс, разложенный по
-UUID коллекции. Активная коллекция даёт вычисляемые `mangas`, `progress`, `lastMangaID`;
-поэтому сетка, карточки и читалка остаются с точки зрения кода одноколлекционными, а
-переключение — это смена активного UUID.
-
-Сканирование каждой коллекции идёт в фоне; наблюдатели папок пересоздаются после
-каждого рескана. Добавление нескольких папок через `NSOpenPanel` не прерывает открытую
-читалку: новые коллекции просто появляются в сайдбаре.
-
-### Рендеринг
-
-`MangaPageCanvas` — это `NSViewRepresentable` над кастомным `NSScrollView`.
-Документ-вью всегда не меньше вьюпорта, страница центрируется внутри, поэтому при
-масштабе 1× страница центрирована, а при зуме контейнер растягивается нативно.
-
-- `allowsMagnification = true`, `min = 1`, `max = 5`;
-- пинч обрабатывается в `magnify(with:)` и вызывает
-  `setMagnification(_:centeredAt:)` с точкой в координатах clip view;
-- смарт-зум анимируется `ZoomAnimator` через `CADisplayLink` (ease-out cubic);
-- при `zoom == 1` горизонтальный `scrollWheel` перехватывается и превращается в
-  page-flip; при `zoom > 1` событие уходит в `super` — работает штатная инерция AppKit;
-- двойной клик в средней трети обрабатывается `PageContentView.mouseDown`, координата
-  конвертируется в clip view и передаётся в аниматор;
-- клик в боковых третях переключает страницу с учётом RTL/LTR;
-- смена страницы добавляет короткий `CATransition` push (0.16 с) и сбрасывает скролл.
-
-Разворот — это две `PageContentView` рядом внутри surface; RTL меняет порядок кадров, а
-широкая страница формирует спред из одного элемента в `SpreadBuilder`.
-
-### Декодирование и память
-
-- Полные страницы декодируются `CGImageSourceCreateImageAtIndex` с
-  `kCGImageSourceShouldCacheImmediately: true` в `Task.detached`.
-- `ImagePrefetcher` — actor с `NSCache` (лимит ~700 МБ / 48 изображений). Видимые
-  страницы имеют приоритет `userInitiated`, префетч — `utility`.
-- `MetadataProbe` читает только заголовки (`CGImageSourceCopyPropertiesAtIndex`), чтобы
-  заранее знать размеры страниц и корректно строить развороты.
-- Обложки и превью — `ThumbnailProvider` с `DecodeGate(limit: 4)` и отдельным кэшем.
-
-### Конкурентность Swift 6
-
-UI-классы изолированы на `@MainActor`. Сканирование, декодирование, запись состояния и
-чтение метаданных выполняются вне главного актора; модели — `Sendable`-структуры.
-Состояние пишется через сериализующую очередь, прогресс сохраняется с дебаунсом 450 мс
-и синхронно при завершении приложения.
-
-## Где хранятся данные
-
-- `~/Library/Application Support/Mangla/state.json` — список коллекций, их bookmarks,
-  пути, активная коллекция и прогресс по каждой манге/главе.
-- `~/Library/Preferences/com.mangla.reader.plist` — режим чтения, вписывание,
-  направление.
-- Позиция окна — стандартный frame autosave.
-- В папки с мангой приложение **ничего не пишет**.
-
-Состояние версии 1 (одна корневая папка) автоматически мигрирует в версию 2: старая папка
-становится одной коллекцией, её прогресс сохраняется.
-
-## Тесты
-
-```bash
-swift test
-```
-
-53 теста: рекурсивный сканер, смешанные расширения, естественная сортировка глав,
-коллекция-как-манга, развороты с широкими сканами, математика `fitHeight` / `fitWidth` /
-`original`, поведение боковой панели у левого края, клик-зоны 33% с RTL-зеркалированием,
-направление анимации, пагинация (границы, диапазоны, clamping), разделение прогресса по
-коллекциям, миграция состояния v1 → v2, определение системного языка, английский фоллбек,
-плюрализация en/ru и форматирование строк.
-
-## Ограничения
-
-- Поддерживаются только папки с изображениями; CBZ/CBR/PDF не открываются.
-- «Оригинальный размер» трактует 1 пиксель изображения как 1 point; на Retina это
-  осознанно крупнее физического пикселя.
-- Очень большие сканы декодируются в полном разрешении.
-- Наблюдатели папок покрывают корень коллекции и папки манг; новые страницы внутри уже
-  существующей главы подхватываются кнопкой «Обновить»/`⌘R`.
-- Приложение не sandboxed и подписано ad-hoc; для распространения нужна подпись
-  Developer ID и, при желании, entitlements с security-scoped bookmarks.
-- «Убрать из приложения» удаляет коллекцию и её прогресс из Mangla, но не трогает папку
-  на диске.
-- Страница пагинации фиксирована (30 манг); при очень больших коллекциях удобно
-  пользоваться поиском и фильтрами.
-
-## Скрипты
-
-- `Scripts/build-app.sh [release|debug]` — сборка `.app`.
-- `Scripts/make-icon.swift` — рисует мастер-иконку 1024×1024: обложку тома манги
-  (кремовая бумага, суми-и «M», вермильоновая оби) в сетке macOS.
-- `Scripts/make-icon.sh` — собирает `Resources/AppIcon.icns` из мастера: все размеры
-  через `sips` и `iconutil`.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Report security issues through [SECURITY.md](SECURITY.md). Mangla is released under the [MIT License](LICENSE).
