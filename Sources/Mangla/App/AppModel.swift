@@ -809,6 +809,7 @@ final class AppModel {
     func closeReader() {
         reading?.close()
         reading = nil
+        Task { await ImagePrefetcher.shared.releaseMemory() }
     }
 
     func continueReading() {
