@@ -53,6 +53,9 @@ final class AppModel {
     @ObservationIgnored private var saveTask: Task<Void, Never>?
     @ObservationIgnored private var didBootstrap = false
     @ObservationIgnored private var pendingAutoReader = false
+    /// Tests use in-memory models; disabling persistence keeps them away from
+    /// the user's real Application Support directory.
+    @ObservationIgnored var persistenceEnabled = true
 
     // MARK: - Active collection
 
@@ -276,7 +279,9 @@ final class AppModel {
         for watcher in watchers.values { watcher.stop() }
         for url in scopedURLs.values { url.stopAccessingSecurityScopedResource() }
         saveTask?.cancel()
-        StatePersistence.saveSynchronously(makeState())
+        if persistenceEnabled {
+            StatePersistence.saveSynchronously(makeState())
+        }
     }
 
     // MARK: - Collections
@@ -702,6 +707,7 @@ final class AppModel {
 
     func saveNow() {
         saveTask?.cancel()
+        guard persistenceEnabled else { return }
         StatePersistence.saveQueued(makeState())
     }
 

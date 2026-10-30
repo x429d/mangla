@@ -433,6 +433,9 @@ final class ReadingSession {
         currentPageIndex = 0
         zoom = 1
         isLoadingChapter = true
+        // A seek request from the previous chapter must not move the new
+        // webtoon canvas to an unrelated page during its initial layout.
+        seekRequest = WebtoonSeekRequest(id: 0, page: 0)
         loadMetadata(startPage: startPage)
 
         let subtitle = newManga.id == previousMangaID
