@@ -46,6 +46,7 @@ final class AppModel {
 
     @ObservationIgnored private var initialScanTask: Task<Void, Never>?
     @ObservationIgnored private var scanTasks: [UUID: Task<Void, Never>] = [:]
+    @ObservationIgnored private var scanGeneration = ScanGeneration()
     @ObservationIgnored private var rescanTasks: [UUID: Task<Void, Never>] = [:]
     @ObservationIgnored private var watchers: [UUID: ProjectWatcher] = [:]
     @ObservationIgnored private var scopedURLs: [UUID: URL] = [:]
@@ -246,8 +247,9 @@ final class AppModel {
 
             for id in ordered {
                 if Task.isCancelled { return }
-                await self.performScan(collectionID: id)
-                self.scanningCollectionIDs.remove(id)
+                let generation = self.beginScan(collectionID: id)
+                await self.performScan(collectionID: id, generation: generation)
+                guard self.finishScan(collectionID: id, generation: generation) else { continue }
 
                 if self.pendingAutoReader, id == self.selectedCollectionID {
                     self.pendingAutoReader = false
@@ -366,6 +368,7 @@ final class AppModel {
 
         scanTasks[id]?.cancel()
         scanTasks[id] = nil
+        scanGeneration.invalidate(id)
         rescanTasks[id]?.cancel()
         rescanTasks[id] = nil
         scanningCollectionIDs.remove(id)
@@ -414,18 +417,33 @@ final class AppModel {
         guard collections.contains(where: { $0.id == collectionID }) else { return }
 
         scanTasks[collectionID]?.cancel()
-        scanningCollectionIDs.insert(collectionID)
+        let generation = beginScan(collectionID: collectionID)
 
         scanTasks[collectionID] = Task { [weak self] in
             guard let self else { return }
-            await self.performScan(collectionID: collectionID)
-            self.scanningCollectionIDs.remove(collectionID)
-            self.scanTasks[collectionID] = nil
+            await self.performScan(collectionID: collectionID, generation: generation)
+            guard self.finishScan(collectionID: collectionID, generation: generation) else { return }
             self.saveNow()
         }
     }
 
-    private func performScan(collectionID: UUID) async {
+    /// A scan is current only while its generation is the latest one for the
+    /// collection. Cancelled scans may finish their filesystem walk later, so
+    /// the generation check is the authority, not `Task.isCancelled`.
+    private func beginScan(collectionID: UUID) -> Int {
+        let generation = scanGeneration.begin(for: collectionID)
+        scanningCollectionIDs.insert(collectionID)
+        return generation
+    }
+
+    private func finishScan(collectionID: UUID, generation: Int) -> Bool {
+        guard scanGeneration.isCurrent(collectionID, generation: generation) else { return false }
+        scanningCollectionIDs.remove(collectionID)
+        scanTasks[collectionID] = nil
+        return true
+    }
+
+    private func performScan(collectionID: UUID, generation: Int) async {
         guard let collection = collections.first(where: { $0.id == collectionID }) else { return }
         let url = collection.directoryURL
 
@@ -439,7 +457,7 @@ final class AppModel {
             }
         }.value
 
-        guard !Task.isCancelled else { return }
+        guard scanGeneration.isCurrent(collectionID, generation: generation) else { return }
 
         switch result {
         case .success(let snapshot):
