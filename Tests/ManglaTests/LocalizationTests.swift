@@ -2,6 +2,7 @@ import XCTest
 
 @testable import Mangla
 
+// Russian strings here are intentional fixtures for the shipped localization.
 final class LocalizationTests: XCTestCase {
     private let english = Localization(language: .english)
     private let russian = Localization(language: .russian)

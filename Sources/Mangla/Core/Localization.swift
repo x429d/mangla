@@ -139,7 +139,7 @@ struct Localization: Sendable {
         )
     }
 
-    /// "3 pages" / "3 страницы", or "3 p." with `compact`.
+    /// "3 pages", or "3 p." with `compact`.
     func counted(_ count: Int, _ noun: CountedNoun, compact: Bool = false) -> String {
         if compact, let key = noun.compactKey {
             return "\(count) \(text(key))"
