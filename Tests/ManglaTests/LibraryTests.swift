@@ -81,6 +81,21 @@ final class LibraryScannerTests: XCTestCase {
         XCTAssertEqual(mangaItem.chapters[0].title, "Part 1/Part 2/Part 3/Part 4/Part 5")
     }
 
+    func testUnreadableRootThrowsInsteadOfLookingEmpty() throws {
+        let locked = root.appendingPathComponent("Locked", isDirectory: true)
+        try FileManager.default.createDirectory(at: locked, withIntermediateDirectories: true)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: locked.path)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: locked.path)
+        }
+
+        XCTAssertThrowsError(try LibraryScanner.scan(projectURL: locked)) { error in
+            guard case LibraryScanError.unreadable = error else {
+                return XCTFail("Expected unreadable, got \(error)")
+            }
+        }
+    }
+
     func testProjectFolderItselfCanBeAManga() throws {
         for index in 1...3 {
             try Data().write(to: root.appendingPathComponent("\(index).webp"))

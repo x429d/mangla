@@ -45,7 +45,9 @@ enum LibraryScanner {
             throw LibraryScanError.notADirectory(root)
         }
 
-        let entries = listing(of: root)
+        guard let entries = listing(of: root) else {
+            throw LibraryScanError.unreadable(root)
+        }
         let directImages = entries.filter { isImageFile($0.url) }
         let subdirectories = entries.filter { $0.isDirectory && !$0.isSymlink }
 
@@ -115,7 +117,7 @@ enum LibraryScanner {
             return []
         }
 
-        let entries = listing(of: directory)
+        guard let entries = listing(of: directory) else { return [] }
         let images =
             entries
             .filter { isImageFile($0.url) }
@@ -172,7 +174,7 @@ enum LibraryScanner {
         let isSymlink: Bool
     }
 
-    private static func listing(of directory: URL) -> [Entry] {
+    private static func listing(of directory: URL) -> [Entry]? {
         let urls: [URL]
         do {
             urls = try FileManager.default.contentsOfDirectory(
@@ -182,7 +184,7 @@ enum LibraryScanner {
             )
         } catch {
             logger.error("Could not list \(directory.path, privacy: .public): \(error.localizedDescription)")
-            return []
+            return nil
         }
 
         return urls.compactMap { url in
@@ -204,8 +206,7 @@ enum LibraryScanner {
     }
 
     private static func containsImages(in directory: URL, depth: Int) -> Bool {
-        guard depth <= maxDepth else { return false }
-        let entries = listing(of: directory)
+        guard depth <= maxDepth, let entries = listing(of: directory) else { return false }
         if entries.contains(where: { isImageFile($0.url) }) { return true }
         return entries.contains {
             $0.isDirectory && !$0.isSymlink && containsImages(in: $0.url, depth: depth + 1)
