@@ -9,6 +9,29 @@ final class ManglaWindow: NSWindow {
         if event.type == .keyDown, keyHandler?(event) == true {
             return
         }
+
+        // The content view covers the hidden titlebar, so the event never
+        // reaches AppKit's own double-click handling. Match it here for the
+        // empty strip above the header.
+        if event.type == .leftMouseDown, event.clickCount == 2 {
+            let action = WindowTitlebar.doubleClickAction(
+                at: event.locationInWindow,
+                windowHeight: frame.height,
+                isFullScreen: styleMask.contains(.fullScreen),
+                systemPreference: UserDefaults.standard.string(forKey: "AppleActionOnDoubleClick")
+            )
+            switch action {
+            case .zoom:
+                performZoom(nil)
+                return
+            case .minimize:
+                performMiniaturize(nil)
+                return
+            case .ignore:
+                break
+            }
+        }
+
         super.sendEvent(event)
     }
 }

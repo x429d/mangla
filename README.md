@@ -2,6 +2,18 @@
 
 A native macOS manga reader built with Swift 6, SwiftUI, and AppKit. No web view, no network access, and no writes into your manga folders.
 
+## Screenshots
+
+![Library: a collection of covers with reading status and a Continue Reading row](docs/screenshots/library.png)
+
+*Library — covers, reading status, filters, and Continue Reading.*
+
+![Reader: a single page with the page sidebar open](docs/screenshots/reader.png)
+
+*Reader — single page with the page sidebar open.*
+
+The screenshots use [Pepper&Carrot](https://www.peppercarrot.com/) by David Revoy (CC BY 4.0) as demo content.
+
 ## Features
 
 - Multiple collection folders open at once, with security-scoped bookmarks.
