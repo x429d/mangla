@@ -77,5 +77,6 @@ struct WindowTrafficLights: View {
         .focusable(false)
         .focusEffectDisabled()
         .help(help)
+        .accessibilityLabel(Text(help))
     }
 }

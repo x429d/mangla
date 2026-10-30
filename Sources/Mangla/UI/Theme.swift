@@ -18,12 +18,8 @@ enum Theme {
     static let accentSoft = Color(red: 0.980, green: 0.478, blue: 0.322)
     static let mint = Color(red: 0.420, green: 0.827, blue: 0.694)
 
-    static let corner: CGFloat = 14
     static let spring = Animation.spring(response: 0.36, dampingFraction: 0.82)
     static let snappy = Animation.spring(response: 0.24, dampingFraction: 0.86)
-    static let smooth = Animation.smooth(duration: 0.26)
-
-    static let pageLabelFont = Font.system(size: 11, weight: .semibold, design: .monospaced)
 
     static func hue(for string: String) -> Double {
         let value = string.unicodeScalars.reduce(0) { $0 &+ Int($1.value) }
@@ -215,14 +211,7 @@ struct SidebarToggleButton: View {
         }
         .buttonStyle(.plain)
         .help(isCollapsed ? t(.showSidebarHelp) : t(.hideSidebarHelp))
-    }
-}
-
-struct SVGArrow: View {
-    var body: some View {
-        Image(systemName: "chevron.right")
-            .font(.system(size: 10, weight: .bold))
-            .foregroundStyle(Theme.textTertiary)
+        .accessibilityLabel(Text(isCollapsed ? t(.showSidebarHelp) : t(.hideSidebarHelp)))
     }
 }
 
@@ -354,28 +343,5 @@ struct TitlePlaceholder: View {
                 .font(.system(size: 26, weight: .light))
                 .foregroundStyle(.white.opacity(0.55))
         }
-    }
-}
-
-// MARK: - Hover
-
-struct HoverLift: ViewModifier {
-    @State private var hovering = false
-    var scale: CGFloat = 1.028
-    var corner: CGFloat = Theme.corner
-
-    func body(content: Content) -> some View {
-        content
-            .scaleEffect(hovering ? scale : 1)
-            .shadow(color: .black.opacity(hovering ? 0.45 : 0.2), radius: hovering ? 22 : 10, y: hovering ? 12 : 6)
-            .overlay(
-                RoundedRectangle(cornerRadius: corner, style: .continuous)
-                    .strokeBorder(
-                        hovering ? Theme.accent.opacity(0.4) : Theme.stroke,
-                        lineWidth: 1
-                    )
-            )
-            .animation(Theme.spring, value: hovering)
-            .onHover { hovering = $0 }
     }
 }

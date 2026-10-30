@@ -382,6 +382,7 @@ struct PaginationBar: View {
             .buttonStyle(.plain)
             .disabled(page <= 0)
             .help(t(.previousPage))
+            .accessibilityLabel(Text(t(.previousPage)))
 
             Text("\(page + 1) / \(pageCount)")
                 .font(.system(size: 10, weight: .semibold, design: .monospaced))
@@ -398,6 +399,7 @@ struct PaginationBar: View {
             .buttonStyle(.plain)
             .disabled(page >= pageCount - 1)
             .help(t(.nextPage))
+            .accessibilityLabel(Text(t(.nextPage)))
         }
         .padding(.horizontal, 7)
         .frame(height: 30)

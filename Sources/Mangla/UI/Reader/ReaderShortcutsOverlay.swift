@@ -138,6 +138,7 @@ struct ReaderShortcutsOverlay: View {
             }
             .buttonStyle(.plain)
             .help(t(.helpClose))
+            .accessibilityLabel(Text(t(.helpClose)))
         }
     }
 

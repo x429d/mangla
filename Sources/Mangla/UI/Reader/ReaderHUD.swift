@@ -22,6 +22,7 @@ struct HUDIconButton: View {
         }
         .buttonStyle(.plain)
         .help(help)
+        .accessibilityLabel(Text(help.isEmpty ? symbol : help))
     }
 }
 
@@ -211,6 +212,7 @@ struct ReaderSidebar: View {
                     }
                     .buttonStyle(.plain)
                     .help("\(mode.title) (\(mode.shortcutKey))")
+                    .accessibilityLabel(Text(mode.title))
                 }
             }
             .padding(2)
@@ -281,6 +283,7 @@ struct ReaderSidebar: View {
                 }
                 .buttonStyle(.plain)
                 .help("\(direction.title) (T)")
+                .accessibilityLabel(Text(direction.title))
             }
         }
         .padding(2)
