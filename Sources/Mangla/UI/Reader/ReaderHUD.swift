@@ -77,6 +77,7 @@ struct ReaderSidebar: View {
         .offset(x: session.chrome.isSideVisible ? 0 : -26)
         .animation(.smooth(duration: 0.22), value: session.chrome.isSideVisible)
         .allowsHitTesting(session.chrome.isSideVisible)
+        .accessibilityHidden(!session.chrome.isSideVisible)
         .onHover { hovering in
             session.chrome.setSideHovered(hovering)
             if hovering {

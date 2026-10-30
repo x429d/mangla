@@ -70,6 +70,7 @@ enum LocKey: String, CaseIterable, Sendable {
     case searchPlaceholder
     case addCollectionHelp
     case refreshCollectionHelp
+    case collectionActions
     case scanningCollection
     case selectCollection
     case nothingFound
@@ -294,6 +295,7 @@ extension LocKey {
         .searchPlaceholder: "Search collection",
         .addCollectionHelp: "Add Collection (⌘O)",
         .refreshCollectionHelp: "Refresh Collection (⌘R)",
+        .collectionActions: "Collection Actions",
         .scanningCollection: "Scanning collection…",
         .selectCollection: "Select a Collection",
         .nothingFound: "Nothing Found",
@@ -496,6 +498,7 @@ extension LocKey {
         .searchPlaceholder: "Поиск в коллекции",
         .addCollectionHelp: "Добавить коллекцию (⌘O)",
         .refreshCollectionHelp: "Обновить коллекцию (⌘R)",
+        .collectionActions: "Действия с коллекцией",
         .scanningCollection: "Сканирую коллекцию…",
         .selectCollection: "Выберите коллекцию",
         .nothingFound: "Ничего не найдено",

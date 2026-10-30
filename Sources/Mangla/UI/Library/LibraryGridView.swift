@@ -214,6 +214,7 @@ struct LibraryGridView: View {
             }
             .buttonStyle(.plain)
             .help(t(.refreshCollectionHelp))
+            .accessibilityLabel(Text(t(.refreshCollection)))
 
             Menu {
                 Button(t(.menuAddCollection)) { model.addCollections() }
@@ -234,6 +235,7 @@ struct LibraryGridView: View {
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .fixedSize()
+            .accessibilityLabel(Text(t(.collectionActions)))
         }
         .frame(height: 30)
     }

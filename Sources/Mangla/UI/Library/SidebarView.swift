@@ -159,6 +159,7 @@ struct SidebarView: View {
             }
             .buttonStyle(.plain)
             .help(t(.addCollectionHelp))
+            .accessibilityLabel(Text(t(.addCollection)))
         }
     }
 
