@@ -2,11 +2,6 @@
 
 A native macOS manga reader built with Swift 6, SwiftUI, and AppKit. No web view, no network access, and no writes into your manga folders.
 
-[![CI](https://github.com/x429d/mangla/actions/workflows/ci.yml/badge.svg)](https://github.com/x429d/mangla/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-
-> Screenshot placeholder: a real capture will be added before the first public release.
-
 ## Features
 
 - Multiple collection folders open at once, with security-scoped bookmarks.
