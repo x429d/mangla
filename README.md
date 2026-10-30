@@ -87,7 +87,7 @@ Reader commands are read by physical key position, so they work on non-US layout
 
 - Only image folders are supported. CBZ, CBR, and PDF are not opened.
 - Chapter traversal stops at 8 folder levels. Deeper folders are skipped and the skip is logged.
-- Folder watching covers the collection root, manga folders, and up to 200 chapter folders. Larger libraries need **Refresh** (`Cmd+R`) for changes beyond the cap.
+- Folder watching covers the collection root, manga folders, and chapter folders, capped at 200 watched directories per collection. Larger libraries need **Refresh** (`Cmd+R`) for changes beyond the cap.
 - Progress is keyed by folder path. Renaming a manga or chapter outside the app starts that item from zero; the collection bookmark itself can survive a move.
 - Actual Size maps one image pixel to one point. On a Retina display this is deliberately larger than one physical pixel.
 - Full-resolution pages are decoded on demand. Large scans can use hundreds of megabytes per page; the shared cache is bounded to about 700 MB and 48 images, and is released when the reader closes.
