@@ -64,6 +64,25 @@ final class LibraryScannerTests: XCTestCase {
         XCTAssertEqual(mangaItem.chapters[0].pageCount, 3)
     }
 
+    func testChapterNestedDeeperThanTheProbeLimitIsFound() throws {
+        let manga = root.appendingPathComponent("Deep", isDirectory: true)
+        let chapter = manga
+            .appendingPathComponent("Part 1", isDirectory: true)
+            .appendingPathComponent("Part 2", isDirectory: true)
+            .appendingPathComponent("Part 3", isDirectory: true)
+            .appendingPathComponent("Part 4", isDirectory: true)
+            .appendingPathComponent("Part 5", isDirectory: true)
+        try FileManager.default.createDirectory(at: chapter, withIntermediateDirectories: true)
+        try Data().write(to: chapter.appendingPathComponent("001.jpg"))
+        try Data().write(to: chapter.appendingPathComponent("002.jpg"))
+
+        let snapshot = try LibraryScanner.scan(projectURL: root)
+        let mangaItem = try XCTUnwrap(snapshot.mangas.first)
+        XCTAssertEqual(mangaItem.chapters.count, 1)
+        XCTAssertEqual(mangaItem.chapters[0].pageCount, 2)
+        XCTAssertEqual(mangaItem.chapters[0].title, "Part 1/Part 2/Part 3/Part 4/Part 5")
+    }
+
     func testProjectFolderItselfCanBeAManga() throws {
         for index in 1...3 {
             try Data().write(to: root.appendingPathComponent("\(index).webp"))

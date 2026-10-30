@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 enum LibraryScanError: LocalizedError {
     case unreadable(URL)
@@ -27,6 +28,7 @@ enum LibraryScanner {
     ]
 
     private static let maxDepth = 8
+    private static let logger = Logger(subsystem: "com.mangla.reader", category: "scanner")
     private static let resourceKeys: Set<URLResourceKey> = [
         .isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey, .nameKey
     ]
@@ -107,7 +109,10 @@ enum LibraryScanner {
         projectRoot: URL,
         depth: Int
     ) -> [ChapterItem] {
-        guard depth <= maxDepth else { return [] }
+        guard depth <= maxDepth else {
+            logger.warning("Stopped chapter scan at \(directory.path, privacy: .public): depth limit \(maxDepth)")
+            return []
+        }
 
         let entries = listing(of: directory)
         let images = entries
@@ -163,26 +168,37 @@ enum LibraryScanner {
     }
 
     private static func listing(of directory: URL) -> [Entry] {
-        let urls = (try? FileManager.default.contentsOfDirectory(
-            at: directory,
-            includingPropertiesForKeys: Array(resourceKeys),
-            options: [.skipsHiddenFiles]
-        )) ?? []
+        let urls: [URL]
+        do {
+            urls = try FileManager.default.contentsOfDirectory(
+                at: directory,
+                includingPropertiesForKeys: Array(resourceKeys),
+                options: [.skipsHiddenFiles]
+            )
+        } catch {
+            logger.error("Could not list \(directory.path, privacy: .public): \(error.localizedDescription)")
+            return []
+        }
 
         return urls.compactMap { url in
-            guard let values = try? url.resourceValues(forKeys: resourceKeys) else { return nil }
-            let name = url.lastPathComponent
-            guard !name.hasPrefix("."), name != "__MACOSX" else { return nil }
-            return Entry(
-                url: url,
-                isDirectory: values.isDirectory ?? false,
-                isSymlink: values.isSymbolicLink ?? false
-            )
+            do {
+                let values = try url.resourceValues(forKeys: resourceKeys)
+                let name = url.lastPathComponent
+                guard !name.hasPrefix("."), name != "__MACOSX" else { return nil }
+                return Entry(
+                    url: url,
+                    isDirectory: values.isDirectory ?? false,
+                    isSymlink: values.isSymbolicLink ?? false
+                )
+            } catch {
+                logger.debug("Could not read attributes for \(url.path, privacy: .public): \(error.localizedDescription)")
+                return nil
+            }
         }
     }
 
     private static func containsImages(in directory: URL, depth: Int) -> Bool {
-        guard depth <= 4 else { return false }
+        guard depth <= maxDepth else { return false }
         let entries = listing(of: directory)
         if entries.contains(where: { isImageFile($0.url) }) { return true }
         return entries.contains {
