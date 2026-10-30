@@ -41,6 +41,7 @@ struct PageCanvasRepresentable: NSViewRepresentable {
         private let surface = CanvasSurfaceView()
         private var pageViews: [PageContentView] = []
         private var loadTasks: [Int: Task<Void, Never>] = [:]
+        private var prefetchTask: Task<Void, Never>?
         private lazy var contextMenuController = ReaderContextMenuController(session: session)
 
         private var currentURLs: [URL] = []
@@ -220,8 +221,10 @@ struct PageCanvasRepresentable: NSViewRepresentable {
         }
 
         private func prefetch() {
+            prefetchTask?.cancel()
             let urls = session.prefetchURLs
-            Task {
+            prefetchTask = Task {
+                guard !Task.isCancelled else { return }
                 await ImagePrefetcher.shared.updatePrefetchWindow(urls)
             }
         }
@@ -412,6 +415,8 @@ struct PageCanvasRepresentable: NSViewRepresentable {
             installed = false
             for task in loadTasks.values { task.cancel() }
             loadTasks.removeAll()
+            prefetchTask?.cancel()
+            prefetchTask = nil
             scrollView?.cancelAnimations()
             session.bridge.detach(self)
             scrollView = nil

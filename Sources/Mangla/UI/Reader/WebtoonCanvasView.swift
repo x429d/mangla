@@ -35,6 +35,7 @@ struct WebtoonCanvasRepresentable: NSViewRepresentable {
         private let strip = CanvasSurfaceView()
         private var pageViews: [PageContentView] = []
         private var loadTasks: [Int: Task<Void, Never>] = [:]
+        private var prefetchTask: Task<Void, Never>?
         private lazy var contextMenuController = ReaderContextMenuController(session: session)
 
         private var currentURLs: [URL] = []
@@ -280,10 +281,12 @@ struct WebtoonCanvasRepresentable: NSViewRepresentable {
         }
 
         private func prefetch(window: ClosedRange<Int>) {
+            prefetchTask?.cancel()
             let urls = window.compactMap { index -> URL? in
                 session.pageSlots.indices.contains(index) ? session.pageSlots[index].url : nil
             }
-            Task {
+            prefetchTask = Task {
+                guard !Task.isCancelled else { return }
                 await ImagePrefetcher.shared.updatePrefetchWindow(urls)
             }
         }
@@ -467,6 +470,8 @@ struct WebtoonCanvasRepresentable: NSViewRepresentable {
             NotificationCenter.default.removeObserver(self)
             for task in loadTasks.values { task.cancel() }
             loadTasks.removeAll()
+            prefetchTask?.cancel()
+            prefetchTask = nil
             scrollView?.cancelAnimations()
             session.bridge.detach(self)
             scrollView = nil
