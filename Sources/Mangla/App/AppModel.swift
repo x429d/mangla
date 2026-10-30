@@ -474,7 +474,23 @@ final class AppModel {
         case .success(let snapshot):
             apply(snapshot, to: collectionID)
         case .failure(let error):
-            errorMessage = error.localizedDescription
+            markScanFailed(collectionID: collectionID, error: error)
+        }
+    }
+
+    private func markScanFailed(collectionID: UUID, error: LibraryScanError) {
+        guard let index = collections.firstIndex(where: { $0.id == collectionID }) else { return }
+        collections[index].isAvailable = false
+        watchers[collectionID]?.stop()
+        watchers[collectionID] = nil
+        errorMessage = error.localizedDescription
+    }
+
+    /// Waits for the collection's current scan to finish. Used by tests and
+    /// callers that need a deterministic hand-off after `scan(collectionID:)`.
+    func waitForScans() async {
+        while let task = scanTasks.values.first {
+            await task.value
         }
     }
 
