@@ -15,32 +15,34 @@ struct MangaGridCard: View {
     @State private var hovering = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            cover
+        Button(action: onOpen) {
+            VStack(alignment: .leading, spacing: 10) {
+                cover
 
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(manga.title)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Theme.textPrimary)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                    Spacer(minLength: 0)
-                    if status == .reading {
-                        Text(Format.percent(fraction))
-                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(Theme.accentSoft)
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(manga.title)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Theme.textPrimary)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                        Spacer(minLength: 0)
+                        if status == .reading {
+                            Text(Format.percent(fraction))
+                                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                                .foregroundStyle(Theme.accentSoft)
+                        }
                     }
-                }
 
-                Text("\(Format.chaptersCompact(manga.chapterCount))  ·  \(Format.pagesCompact(manga.pageCount))")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(Theme.textTertiary)
-                    .lineLimit(1)
+                    Text("\(Format.chaptersCompact(manga.chapterCount))  ·  \(Format.pagesCompact(manga.pageCount))")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(Theme.textTertiary)
+                        .lineLimit(1)
+                }
             }
+            .contentShape(Rectangle())
         }
-        .contentShape(Rectangle())
-        .onTapGesture(perform: onOpen)
+        .buttonStyle(.plain)
         .onHover { hovering = $0 }
         .scaleEffect(hovering ? 1.022 : 1)
         .animation(Theme.spring, value: hovering)
