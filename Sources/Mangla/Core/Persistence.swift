@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 // MARK: - Persisted collection
 
@@ -64,7 +65,86 @@ extension LegacyLibraryState {
     }
 }
 
+/// Reads and writes the library state together with a last-known-good backup.
+///
+/// A corrupt or unreadable `state.json` is moved aside before the app can write
+/// a fresh one, so recovery never silently destroys the user's progress.
+struct StateStore: Sendable {
+    let directoryURL: URL
+
+    var stateURL: URL { directoryURL.appendingPathComponent("state.json") }
+    var backupURL: URL { directoryURL.appendingPathComponent("state.json.bak") }
+
+    func load() -> LibraryState? {
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: stateURL.path) else { return nil }
+
+        if let data = try? Data(contentsOf: stateURL),
+           let state = StatePersistence.decode(data) {
+            return state
+        }
+
+        StatePersistence.logger.error("state.json could not be decoded; attempting backup")
+        quarantineCorruptState()
+
+        guard let backupData = try? Data(contentsOf: backupURL),
+              let backup = StatePersistence.decode(backupData) else {
+            StatePersistence.logger.error("state.json.bak is missing or unreadable")
+            return nil
+        }
+
+        do {
+            try backupData.write(to: stateURL, options: [.atomic])
+            StatePersistence.logger.notice("Restored state.json from state.json.bak")
+        } catch {
+            StatePersistence.logger.error("Could not restore state.json from backup: \(error.localizedDescription)")
+        }
+        return backup
+    }
+
+    func write(_ state: LibraryState) throws {
+        let fileManager = FileManager.default
+        try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+
+        let data = try StatePersistence.encode(state)
+
+        // Keep the previous good file as a fallback. The primary file is only
+        // replaced atomically below, so a crash here leaves a valid state.json.
+        if fileManager.fileExists(atPath: stateURL.path),
+           let existing = try? Data(contentsOf: stateURL),
+           StatePersistence.decode(existing) != nil {
+            do {
+                if fileManager.fileExists(atPath: backupURL.path) {
+                    try fileManager.removeItem(at: backupURL)
+                }
+                try fileManager.copyItem(at: stateURL, to: backupURL)
+            } catch {
+                StatePersistence.logger.error("Could not refresh state.json.bak: \(error.localizedDescription)")
+            }
+        }
+
+        try data.write(to: stateURL, options: [.atomic])
+    }
+
+    private func quarantineCorruptState() {
+        let destination = directoryURL.appendingPathComponent(
+            "state.json.corrupt-\(Int(Date().timeIntervalSince1970))"
+        )
+        do {
+            if FileManager.default.fileExists(atPath: destination.path) {
+                try FileManager.default.removeItem(at: destination)
+            }
+            try FileManager.default.moveItem(at: stateURL, to: destination)
+            StatePersistence.logger.notice("Moved unreadable state.json to \(destination.lastPathComponent)")
+        } catch {
+            StatePersistence.logger.error("Could not preserve unreadable state.json: \(error.localizedDescription)")
+        }
+    }
+}
+
 enum StatePersistence {
+    static let logger = Logger(subsystem: "com.mangla.reader", category: "state")
+
     static var directoryURL: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support")
@@ -75,9 +155,12 @@ enum StatePersistence {
         directoryURL.appendingPathComponent("state.json")
     }
 
+    static var store: StateStore {
+        StateStore(directoryURL: directoryURL)
+    }
+
     static func load() -> LibraryState? {
-        guard let data = try? Data(contentsOf: stateURL) else { return nil }
-        return decode(data)
+        store.load()
     }
 
     static func decode(_ data: Data) -> LibraryState? {
@@ -93,29 +176,35 @@ enum StatePersistence {
         return nil
     }
 
+    static func encode(_ state: LibraryState) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        return try encoder.encode(state)
+    }
+
     /// All writes go through one serial queue, so an older snapshot can never
     /// overwrite a newer one (including a synchronous write at termination).
     private static let writeQueue = DispatchQueue(label: "com.mangla.state", qos: .utility)
 
     static func saveQueued(_ state: LibraryState) {
         writeQueue.async {
-            try? write(state)
+            do {
+                try store.write(state)
+            } catch {
+                logger.error("Could not save library state: \(error.localizedDescription)")
+            }
         }
     }
 
     static func saveSynchronously(_ state: LibraryState) {
         writeQueue.sync {
-            try? write(state)
+            do {
+                try store.write(state)
+            } catch {
+                logger.error("Could not save library state: \(error.localizedDescription)")
+            }
         }
-    }
-
-    private static func write(_ state: LibraryState) throws {
-        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
-        let data = try encoder.encode(state)
-        try data.write(to: stateURL, options: [.atomic])
     }
 }
 
