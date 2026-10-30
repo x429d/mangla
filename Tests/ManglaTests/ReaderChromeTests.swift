@@ -34,7 +34,7 @@ final class ReaderChromeStateTests: XCTestCase {
 
         chrome.updatePointer(xFromLeft: 500)
         XCTAssertTrue(chrome.isSideVisible, "The panel should linger briefly")
-        try? await Task.sleep(for: .milliseconds(80))
+        await chrome.waitForPendingSideHide()
         XCTAssertFalse(chrome.isSideVisible)
     }
 
@@ -44,7 +44,7 @@ final class ReaderChromeStateTests: XCTestCase {
         chrome.updatePointer(xFromLeft: 6)
         chrome.updatePointer(xFromLeft: 200)
 
-        try? await Task.sleep(for: .milliseconds(80))
+        await chrome.waitForPendingSideHide()
         XCTAssertTrue(chrome.isSideVisible)
     }
 
@@ -55,11 +55,11 @@ final class ReaderChromeStateTests: XCTestCase {
         chrome.updatePointer(xFromLeft: 500)
         chrome.setSideHovered(true)
 
-        try? await Task.sleep(for: .milliseconds(80))
+        await chrome.waitForPendingSideHide()
         XCTAssertTrue(chrome.isSideVisible)
 
         chrome.setSideHovered(false)
-        try? await Task.sleep(for: .milliseconds(80))
+        await chrome.waitForPendingSideHide()
         XCTAssertFalse(chrome.isSideVisible)
     }
 
@@ -70,7 +70,7 @@ final class ReaderChromeStateTests: XCTestCase {
         XCTAssertTrue(chrome.isSideVisible)
 
         chrome.pointerExited()
-        try? await Task.sleep(for: .milliseconds(80))
+        await chrome.waitForPendingSideHide()
         XCTAssertFalse(chrome.isSideVisible)
     }
 }

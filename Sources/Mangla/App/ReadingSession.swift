@@ -102,6 +102,11 @@ final class ReaderChromeState {
         isSideVisible = false
     }
 
+    /// Waits for the pending hide delay. Tests use this instead of sleeping.
+    func waitForPendingSideHide() async {
+        await sideHideTask?.value
+    }
+
     private func revealSide() {
         sideHideTask?.cancel()
         sideHideTask = nil
