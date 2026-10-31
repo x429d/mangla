@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-31
+
 ### Added
 
 - CBZ and CBR archives are read alongside image folders, with format detection by content and natural page ordering.
