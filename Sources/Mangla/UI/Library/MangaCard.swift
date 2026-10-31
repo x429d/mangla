@@ -69,8 +69,8 @@ struct MangaGridCard: View {
             .aspectRatio(0.68, contentMode: .fit)
             .overlay {
                 Group {
-                    if let url = manga.coverURL {
-                        ThumbnailImage(url: url, maxPixel: 720)
+                    if let source = manga.coverSource {
+                        ThumbnailImage(source: source, maxPixel: 720)
                     } else {
                         TitlePlaceholder(title: manga.title)
                     }
@@ -158,8 +158,8 @@ struct ContinueBanner: View {
         Button(action: onOpen) {
             HStack(spacing: 18) {
                 Group {
-                    if let url = manga.coverURL {
-                        ThumbnailImage(url: url, maxPixel: 360)
+                    if let source = manga.coverSource {
+                        ThumbnailImage(source: source, maxPixel: 360)
                     } else {
                         TitlePlaceholder(title: manga.title)
                     }

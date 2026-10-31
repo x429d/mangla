@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-31
+
+### Added
+
+- CBZ and CBR archives are read alongside image folders, with format detection by content and natural page ordering.
+- PDF files open as manga or chapters; pages are rasterized on demand and re-rendered sharper when zoomed.
+- Loose archives and PDFs at a collection root become individual mangas.
+- CBR pages are cached outside the library in `~/Library/Caches/Mangla/Archives/`, bounded by size and age.
+
 ## [1.0.0] - 2026-10-30
 
 ### Added

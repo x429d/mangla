@@ -72,6 +72,13 @@ final class ProjectWatcher {
         }
 
         for directory in directories.prefix(Self.watcherLimit) {
+            // Archive and PDF chapters are files, not folders. Watching the
+            // archive itself would fire on every read (atime), so only
+            // directories get a vnode source.
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: directory.path, isDirectory: &isDirectory),
+                isDirectory.boolValue
+            else { continue }
             if let watcher = DirectoryWatcher(url: directory, onChange: onChange) {
                 watchers.append(watcher)
             }

@@ -266,13 +266,13 @@ final class ReadingSession {
     var title: String { manga.title }
     var chapterTitle: String { chapter.title }
 
-    var prefetchURLs: [URL] {
+    var prefetchSources: [PageSource] {
         guard !pageSlots.isEmpty else { return [] }
         let anchor = currentPageIndex
         let lower = max(0, anchor - 2)
         let upper = min(pageSlots.count - 1, anchor + 4)
         guard lower <= upper else { return [] }
-        return pageSlots[lower...upper].map(\.url)
+        return pageSlots[lower...upper].map(\.source)
     }
 
     // MARK: Loading
@@ -287,15 +287,19 @@ final class ReadingSession {
         metadataTask?.cancel()
         isLoadingChapter = true
         let pages = chapter.pages
-        let urls = pages.map(\.url)
+        let sources = pages.map(\.source)
 
         metadataTask = Task { [weak self] in
-            let sizes = await MetadataProbe.shared.sizes(for: urls)
+            // CBR pages live inside a RAR archive; one batch extraction makes
+            // probing all page sizes cheaper than one process per page.
+            await PageImageLoader.prepare(sources)
+            guard !Task.isCancelled else { return }
+            let sizes = await MetadataProbe.shared.sizes(for: sources)
             guard !Task.isCancelled, let self else { return }
             let slots = pages.map { page -> PageSlot in
                 PageSlot(
-                    url: page.url,
-                    pixelSize: sizes[page.url] ?? CGSize(width: 1000, height: 1500)
+                    source: page.source,
+                    pixelSize: sizes[page.source] ?? CGSize(width: 1000, height: 1500)
                 )
             }
             self.pageSlots = slots

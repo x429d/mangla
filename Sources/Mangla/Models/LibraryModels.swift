@@ -3,22 +3,63 @@ import Foundation
 
 // MARK: - Filesystem entities
 
-/// A single image file of a chapter.
+/// A single page of a chapter.
 struct PageItem: Identifiable, Hashable, Sendable {
-    let url: URL
+    let source: PageSource
 
-    var id: URL { url }
-    var name: String { url.deletingPathExtension().lastPathComponent }
-    var fileExtension: String { url.pathExtension.lowercased() }
+    init(source: PageSource) {
+        self.source = source
+    }
+
+    /// Convenience for folder pages.
+    init(url: URL) {
+        self.source = .imageFile(url)
+    }
+
+    var id: PageSource { source }
+
+    /// Page name without its extension, used by tests and diagnostics.
+    var name: String {
+        switch source {
+        case .imageFile(let url):
+            return url.deletingPathExtension().lastPathComponent
+        case .archiveEntry(_, let entry):
+            let file = (entry as NSString).lastPathComponent
+            return (file as NSString).deletingPathExtension
+        case .pdfPage(_, let index):
+            return "\(index + 1)"
+        }
+    }
+
+    var fileExtension: String {
+        switch source {
+        case .imageFile(let url):
+            return url.pathExtension.lowercased()
+        case .archiveEntry(_, let entry):
+            return (entry as NSString).pathExtension.lowercased()
+        case .pdfPage:
+            return "pdf"
+        }
+    }
 }
 
 /// A page ready to be rendered. `pixelSize` always holds the *upright* size
 /// (EXIF orientation already applied).
 struct PageSlot: Identifiable, Hashable, Sendable {
-    let url: URL
+    let source: PageSource
     let pixelSize: CGSize
 
-    var id: URL { url }
+    init(source: PageSource, pixelSize: CGSize) {
+        self.source = source
+        self.pixelSize = pixelSize
+    }
+
+    /// Convenience for folder pages.
+    init(url: URL, pixelSize: CGSize) {
+        self.init(source: .imageFile(url), pixelSize: pixelSize)
+    }
+
+    var id: PageSource { source }
     var aspectRatio: CGFloat {
         guard pixelSize.height > 0 else { return 0.68 }
         return pixelSize.width / pixelSize.height
@@ -29,11 +70,12 @@ struct PageSlot: Identifiable, Hashable, Sendable {
 struct ChapterItem: Identifiable, Hashable, Sendable {
     let id: String
     let title: String
-    let directoryURL: URL
+    /// Folder or archive/PDF file that owns the chapter.
+    let containerURL: URL
     let pages: [PageItem]
 
     var pageCount: Int { pages.count }
-    var firstPageURL: URL? { pages.first?.url }
+    var firstPageSource: PageSource? { pages.first?.source }
 
     static func == (lhs: ChapterItem, rhs: ChapterItem) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
@@ -42,12 +84,13 @@ struct ChapterItem: Identifiable, Hashable, Sendable {
 struct MangaItem: Identifiable, Hashable, Sendable {
     let id: String
     let title: String
-    let directoryURL: URL
+    /// Folder, or the archive/PDF file when a single file is its own manga.
+    let containerURL: URL
     let chapters: [ChapterItem]
 
     var chapterCount: Int { chapters.count }
     var pageCount: Int { chapters.reduce(0) { $0 + $1.pageCount } }
-    var coverURL: URL? { chapters.first?.firstPageURL }
+    var coverSource: PageSource? { chapters.first?.firstPageSource }
 
     static func == (lhs: MangaItem, rhs: MangaItem) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }

@@ -420,7 +420,7 @@ final class AppModel {
     }
 
     func reveal(manga: MangaItem) {
-        NSWorkspace.shared.activateFileViewerSelecting([manga.directoryURL])
+        NSWorkspace.shared.activateFileViewerSelecting([manga.containerURL])
     }
 
     // MARK: - Scanning
@@ -540,8 +540,8 @@ final class AppModel {
 
         watchers[id] = ProjectWatcher(
             root: collection.directoryURL,
-            mangaDirectories: collection.mangas.map(\.directoryURL),
-            chapterDirectories: collection.mangas.flatMap { $0.chapters.map(\.directoryURL) }
+            mangaDirectories: collection.mangas.map(\.containerURL),
+            chapterDirectories: collection.mangas.flatMap { $0.chapters.map(\.containerURL) }
         ) { [weak self] in
             self?.scheduleRescan(collectionID: id)
         }

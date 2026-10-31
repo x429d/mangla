@@ -25,6 +25,7 @@ The screenshots use [Pepper&Carrot](https://www.peppercarrot.com/) by David Revo
 - Per-collection progress for every manga and chapter, restored on launch.
 - English and Russian interface, selected from the system language.
 - Folder watching for new manga, chapters, and pages.
+- Image folders, CBZ/CBR archives, and PDF files in the same collection.
 
 ## Requirements
 
@@ -50,7 +51,7 @@ open Mangla.app
 
 ## Usage
 
-Add one or more folders with **Add Collection** (`Cmd+O`). Both layouts are supported:
+Add one or more folders with **Add Collection** (`Cmd+O`). Folders, archives, and PDFs can be mixed freely:
 
 ```text
 Collection/
@@ -60,11 +61,14 @@ Collection/
   Manga with chapters/
     Chapter 01/
       001.png
-    Chapter 02/
-      001.png
+    Chapter 02.cbz
+    Chapter 03.pdf
+  One Shot.cbz
 ```
 
-A collection folder may itself be a single manga. Pages are sorted by name without the extension, so `1.webp`, `2.jpg`, and `10.png` stay in order. Supported extensions are `.webp`, `.jpg`, `.jpeg`, `.png`, `.avif`, and `.heic`. Hidden files, `__MACOSX`, and symlinks are ignored.
+A collection folder may itself be a single manga. Inside a manga folder, image folders and archive/PDF files each become one chapter; a loose `.cbz`, `.cbr`, or `.pdf` at the collection root becomes its own manga. Pages are sorted by name without the extension, so `1.webp`, `2.jpg`, and `10.png` stay in order.
+
+Supported page images are `.webp`, `.jpg`, `.jpeg`, `.png`, `.avif`, and `.heic`. Archives may be `.cbz` or `.cbr`; their format is detected from the file contents, so a RAR renamed to `.cbz` (or a ZIP renamed to `.cbr`) still opens. Hidden files, `__MACOSX`, AppleDouble companions, and symlinks are ignored, both on disk and inside archives.
 
 Development flags:
 
@@ -92,7 +96,9 @@ Reader commands are read by physical key position, so they work on non-US layout
 
 ## Limitations
 
-- Only image folders are supported. CBZ, CBR, and PDF are not opened.
+- CBZ (ZIP) archives are read natively. CBR (RAR) archives use the system `bsdtar` (libarchive 3.7 on macOS 15). Password-protected or unsupported archives are skipped, and the skip is logged.
+- PDF pages are rendered on demand at about 2x their page size, with a sharper re-render when the zoom passes 2.2x.
+- Extracted CBR pages are cached in `~/Library/Caches/Mangla/Archives/`, capped at 2 GB. Nothing is ever written next to your manga.
 - Chapter traversal stops at 8 folder levels. Deeper folders are skipped and the skip is logged.
 - Folder watching covers the collection root, manga folders, and chapter folders, capped at 200 watched directories per collection. Larger libraries need **Refresh** (`Cmd+R`) for changes beyond the cap.
 - Progress is keyed by folder path. Renaming a manga or chapter outside the app starts that item from zero; the collection bookmark itself can survive a move.
@@ -104,7 +110,7 @@ Reader commands are read by physical key position, so they work on non-US layout
 
 ## Privacy
 
-Mangla makes no network requests and has no telemetry or analytics. It only reads the folders you add. State and reading progress are written to `~/Library/Application Support/Mangla/`, never into the manga folders. `state.json` is written atomically and keeps a `state.json.bak` fallback.
+Mangla makes no network requests and has no telemetry or analytics. It only reads the folders you add. State and reading progress are written to `~/Library/Application Support/Mangla/`, extracted CBR pages to `~/Library/Caches/Mangla/`, never into the manga folders. `state.json` is written atomically and keeps a `state.json.bak` fallback.
 
 ## Architecture
 

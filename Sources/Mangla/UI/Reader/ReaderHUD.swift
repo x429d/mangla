@@ -557,7 +557,7 @@ struct PageScrubber: View {
 
     private func preview(index: Int) -> some View {
         VStack(spacing: 4) {
-            ThumbnailImage(url: pages[index].url, maxPixel: 320)
+            ThumbnailImage(source: pages[index].source, maxPixel: 320)
                 .frame(width: 82, height: 112)
                 .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 .overlay(
