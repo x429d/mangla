@@ -44,11 +44,19 @@ struct PageCanvasRepresentable: NSViewRepresentable {
         private var prefetchTask: Task<Void, Never>?
         private lazy var contextMenuController = ReaderContextMenuController(session: session)
 
-        private var currentURLs: [URL] = []
+        private var currentSources: [PageSource] = []
+        private var currentSlots: [PageSlot] = []
+        private var currentQuality: PageRenderQuality = .standard
         private var currentFit: FitMode?
         private var lastRenderedPageIndex: Int?
         private var generation = 0
         private var installed = false
+
+        /// PDF pages are rasterized on demand, so a strong zoom asks for a
+        /// sharper render of the visible page.
+        private var renderQuality: PageRenderQuality {
+            session.zoom >= 2.2 ? .high : .standard
+        }
 
         init(session: ReadingSession) {
             self.session = session
@@ -78,6 +86,7 @@ struct PageCanvasRepresentable: NSViewRepresentable {
             scrollView.documentView = container
             scrollView.onZoomChanged = { [weak self] value in
                 self?.session.setZoom(value)
+                self?.refreshDetailLevel()
                 self?.syncPanState()
             }
             scrollView.onHorizontalSwipe = { [weak self] delta in
@@ -105,13 +114,15 @@ struct PageCanvasRepresentable: NSViewRepresentable {
             guard let scrollView, installed else { return }
             guard viewport.width > 1, viewport.height > 1 else { return }
 
-            let urls = slots.map(\.url)
-            let slotsChanged = urls != currentURLs
+            let sources = slots.map(\.source)
+            let slotsChanged = sources != currentSources
             let fitChanged = fitMode != currentFit
+            let quality = renderQuality
+            let qualityChanged = !slotsChanged && quality != currentQuality
 
             let newPageIndex = session.currentPageIndex
             let movingForward: Bool?
-            if slotsChanged, !currentURLs.isEmpty,
+            if slotsChanged, !currentSources.isEmpty,
                 let last = lastRenderedPageIndex, newPageIndex != last
             {
                 movingForward = newPageIndex > last
@@ -145,7 +156,9 @@ struct PageCanvasRepresentable: NSViewRepresentable {
 
             if slotsChanged {
                 scrollToTop()
-                loadImages(for: slots)
+                loadImages(for: slots, quality: quality)
+            } else if qualityChanged {
+                upgradeRenderedPages(for: slots, quality: quality)
             } else if fitChanged {
                 scrollToTop()
             }
@@ -155,7 +168,9 @@ struct PageCanvasRepresentable: NSViewRepresentable {
             scrollView.layoutSubtreeIfNeeded()
             syncPanState()
 
-            currentURLs = urls
+            currentSources = sources
+            currentSlots = slots
+            currentQuality = quality
             currentFit = fitMode
             lastRenderedPageIndex = newPageIndex
 
@@ -187,18 +202,21 @@ struct PageCanvasRepresentable: NSViewRepresentable {
             }
         }
 
-        private func loadImages(for slots: [PageSlot]) {
+        private func loadImages(for slots: [PageSlot], quality: PageRenderQuality) {
             let generation = generation
             for (index, slot) in slots.enumerated() where pageViews.indices.contains(index) {
                 let view = pageViews[index]
-                if view.url == slot.url, view.hasImage || view.isLoading {
+                if view.source == slot.source, view.hasImage || view.isLoading {
                     continue
                 }
-                view.beginLoading(for: slot.url)
+                view.beginLoading(for: slot.source)
 
                 let task = Task { [weak self, weak view] in
                     do {
-                        let image = try await ImagePrefetcher.shared.image(for: slot.url)
+                        let image = try await ImagePrefetcher.shared.image(
+                            for: slot.source,
+                            quality: quality
+                        )
                         guard !Task.isCancelled else { return }
                         guard let self, self.generation == generation else { return }
                         guard let view,
@@ -220,12 +238,60 @@ struct PageCanvasRepresentable: NSViewRepresentable {
             }
         }
 
+        /// Re-renders already visible PDF pages at the sharper detail level.
+        /// Image files and archive pages are decoded at native size and are
+        /// left untouched.
+        private func upgradeRenderedPages(for slots: [PageSlot], quality: PageRenderQuality) {
+            guard quality == .high else { return }
+            let generation = generation
+
+            for (index, slot) in slots.enumerated()
+            where slot.source.isPDF && pageViews.indices.contains(index) {
+                let view = pageViews[index]
+                guard view.hasImage, !view.isLoading else { continue }
+                view.beginUpgrade()
+
+                let task = Task { [weak self, weak view] in
+                    do {
+                        let image = try await ImagePrefetcher.shared.image(
+                            for: slot.source,
+                            quality: quality
+                        )
+                        guard !Task.isCancelled else { return }
+                        guard let self, self.generation == generation else { return }
+                        guard let view,
+                            self.pageViews.indices.contains(index),
+                            self.pageViews[index] === view
+                        else { return }
+                        view.show(image: image)
+                    } catch {
+                        guard let view else { return }
+                        view.cancelUpgrade()
+                    }
+                }
+                loadTasks[index]?.cancel()
+                loadTasks[index] = task
+            }
+        }
+
+        /// Called from the magnification observer: a strong zoom asks the
+        /// visible PDF pages for a sharper render. Image and archive pages are
+        /// already at native resolution.
+        private func refreshDetailLevel() {
+            guard installed else { return }
+            let quality = renderQuality
+            guard quality != currentQuality else { return }
+            currentQuality = quality
+            guard quality == .high else { return }
+            upgradeRenderedPages(for: currentSlots, quality: quality)
+        }
+
         private func prefetch() {
             prefetchTask?.cancel()
-            let urls = session.prefetchURLs
+            let sources = session.prefetchSources
             prefetchTask = Task {
                 guard !Task.isCancelled else { return }
-                await ImagePrefetcher.shared.updatePrefetchWindow(urls)
+                await ImagePrefetcher.shared.updatePrefetchWindow(sources)
             }
         }
 

@@ -12,15 +12,16 @@ final class ImagePrefetcherTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: url) }
         try writePNG(to: url)
 
+        let source = PageSource.imageFile(url)
         let prefetcher = ImagePrefetcher()
-        let image = try await prefetcher.image(for: url)
+        let image = try await prefetcher.image(for: source)
         XCTAssertEqual(image.width, 4)
-        let cached = await prefetcher.cachedImage(for: url)
+        let cached = await prefetcher.cachedImage(for: source)
         XCTAssertNotNil(cached)
 
         await prefetcher.releaseMemory()
 
-        let released = await prefetcher.cachedImage(for: url)
+        let released = await prefetcher.cachedImage(for: source)
         XCTAssertNil(released)
     }
 

@@ -271,7 +271,7 @@ struct ProgressTrack: View {
 }
 
 struct ThumbnailImage: View {
-    let url: URL?
+    let source: PageSource?
     var maxPixel: Int = 512
     var contentMode: ContentMode = .fill
 
@@ -294,14 +294,14 @@ struct ThumbnailImage: View {
             }
         }
         .clipped()
-        .task(id: url) {
+        .task(id: source) {
             image = nil
             failed = false
-            guard let url else {
+            guard let source else {
                 failed = true
                 return
             }
-            let loaded = await ThumbnailProvider.shared.thumbnail(for: url, maxPixel: maxPixel)
+            let loaded = await ThumbnailProvider.shared.thumbnail(for: source, maxPixel: maxPixel)
             guard !Task.isCancelled else { return }
             if let loaded {
                 image = loaded

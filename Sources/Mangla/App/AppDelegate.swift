@@ -95,6 +95,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.appearance = NSAppearance(named: .darkAqua)
+        Task.detached(priority: .utility) {
+            ArchiveStore.pruneCacheIfNeeded()
+        }
         buildMenu()
         createWindow()
         model.bootstrap()

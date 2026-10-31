@@ -44,9 +44,9 @@ actor ThumbnailProvider {
         cache.countLimit = 500
     }
 
-    func thumbnail(for url: URL, maxPixel: Int = 512) async -> CGImage? {
+    func thumbnail(for source: PageSource, maxPixel: Int = 512) async -> CGImage? {
         let pixel = max(64, maxPixel)
-        let key = "\(url.absoluteString)#\(pixel)"
+        let key = "\(source.cacheKey)#\(pixel)"
 
         if let cached = cache.object(forKey: key as NSString) {
             return cached
@@ -58,7 +58,7 @@ actor ThumbnailProvider {
         let gate = self.gate
         let task = Task.detached(priority: .utility) { () -> CGImage? in
             await gate.acquire()
-            let image = ImageDecoder.thumbnail(url: url, maxPixel: pixel)
+            let image = await PageImageLoader.thumbnail(for: source, maxPixel: pixel)
             await gate.release()
             return image
         }
@@ -80,22 +80,22 @@ actor ThumbnailProvider {
 actor MetadataProbe {
     static let shared = MetadataProbe()
 
-    private var cache: [URL: CGSize] = [:]
+    private var cache: [PageSource: CGSize] = [:]
 
-    func size(of url: URL) -> CGSize? {
-        if let cached = cache[url] { return cached }
-        guard let size = ImageDecoder.pixelSize(url: url), size.isUsable else { return nil }
-        cache[url] = size
+    func size(of source: PageSource) async -> CGSize? {
+        if let cached = cache[source] { return cached }
+        guard let size = await PageImageLoader.pixelSize(for: source), size.isUsable else { return nil }
+        cache[source] = size
         return size
     }
 
-    func sizes(for urls: [URL]) -> [URL: CGSize] {
-        var result: [URL: CGSize] = [:]
-        result.reserveCapacity(urls.count)
-        for url in urls {
+    func sizes(for sources: [PageSource]) async -> [PageSource: CGSize] {
+        var result: [PageSource: CGSize] = [:]
+        result.reserveCapacity(sources.count)
+        for source in sources {
             if Task.isCancelled { break }
-            if let size = size(of: url) {
-                result[url] = size
+            if let size = await size(of: source) {
+                result[source] = size
             }
         }
         return result

@@ -13,19 +13,22 @@ enum LibraryScanError: LocalizedError {
     }
 }
 
-/// Recursive, extension-agnostic manga library scanner.
+/// Recursive manga library scanner.
 ///
 /// Supported layouts:
 /// ```
 /// Project/Manga/001.webp ...              (single chapter)
 /// Project/Manga/Chapter 01/001.webp ...   (chapter folders)
+/// Project/Manga/Chapter 01.cbz ...        (archive chapters)
+/// Project/Manga/Chapter 01.pdf ...        (PDF chapters)
+/// Project/One Shot.cbz                    (a loose archive is its own manga)
 /// ```
-/// Deeper nesting is supported as well; every folder that directly contains
-/// images becomes one chapter, containers are walked recursively.
+/// A folder that directly contains images is one chapter. Archive and PDF
+/// files next to them become chapters named after the file. Deeper nesting is
+/// walked up to a fixed depth, and unreadable archives are skipped with a log.
 enum LibraryScanner {
-    static let imageExtensions: Set<String> = [
-        "webp", "jpg", "jpeg", "png", "avif", "heic",
-    ]
+    static let imageExtensions = PageFormat.imageExtensions
+    static let archiveExtensions = PageFormat.archiveExtensions
 
     private static let maxDepth = 8
     private static let logger = Logger(subsystem: "com.mangla.reader", category: "scanner")
@@ -48,28 +51,40 @@ enum LibraryScanner {
         guard let entries = listing(of: root) else {
             throw LibraryScanError.unreadable(root)
         }
-        let directImages = entries.filter { isImageFile($0.url) }
+        let directImages = entries.filter { !$0.isDirectory && isImageFile($0.url) }
+        let directComics = entries.filter { !$0.isDirectory && isComicFile($0.url) }
         let subdirectories = entries.filter { $0.isDirectory && !$0.isSymlink }
+        let contentDirectories = subdirectories.filter { containsPages(in: $0.url, depth: 0) }
 
         var mangas: [MangaItem] = []
 
-        // The selected folder may itself be a single manga folder.
+        // The selected folder may itself be a single manga folder or a single
+        // archive/PDF. Loose files at the collection root are individual
+        // mangas only when the root is a real collection.
         let rootIsManga =
             !directImages.isEmpty
-            && !subdirectories.contains(where: { containsImages(in: $0.url, depth: 0) })
+            && contentDirectories.isEmpty
 
         if rootIsManga {
-            if let manga = makeManga(directory: root, projectRoot: root, title: root.lastPathComponent) {
+            if let manga = makeManga(
+                container: root,
+                projectRoot: root,
+                title: root.lastPathComponent
+            ) {
                 mangas.append(manga)
             }
         } else {
-            for entry in subdirectories {
-                guard containsImages(in: entry.url, depth: 0) else { continue }
+            for entry in contentDirectories {
                 if let manga = makeManga(
-                    directory: entry.url,
+                    container: entry.url,
                     projectRoot: root,
                     title: entry.url.lastPathComponent
                 ) {
+                    mangas.append(manga)
+                }
+            }
+            for file in directComics {
+                if let manga = makeStandaloneManga(file: file.url, projectRoot: root) {
                     mangas.append(manga)
                 }
             }
@@ -83,13 +98,13 @@ enum LibraryScanner {
 
     // MARK: - Manga / chapter construction
 
-    private static func makeManga(directory: URL, projectRoot: URL, title: String) -> MangaItem? {
-        let mangaID = relativePath(of: directory, from: projectRoot)
+    private static func makeManga(container: URL, projectRoot: URL, title: String) -> MangaItem? {
+        let mangaID = relativePath(of: container, from: projectRoot)
         let stableMangaID = mangaID.isEmpty ? "." : mangaID
 
         let chapters = collectChapters(
-            in: directory,
-            mangaRoot: directory,
+            in: container,
+            mangaRoot: container,
             projectRoot: projectRoot,
             depth: 0
         )
@@ -101,8 +116,22 @@ enum LibraryScanner {
         return MangaItem(
             id: stableMangaID,
             title: title.trimmingCharacters(in: .whitespacesAndNewlines),
-            directoryURL: directory,
+            containerURL: container,
             chapters: chapters
+        )
+    }
+
+    private static func makeStandaloneManga(file: URL, projectRoot: URL) -> MangaItem? {
+        let title = file.deletingPathExtension().lastPathComponent
+        guard let chapter = makeComicChapter(file: file, projectRoot: projectRoot, title: title) else {
+            return nil
+        }
+        let mangaID = relativePath(of: file, from: projectRoot)
+        return MangaItem(
+            id: mangaID.isEmpty ? "." : mangaID,
+            title: title.trimmingCharacters(in: .whitespacesAndNewlines),
+            containerURL: file,
+            chapters: [chapter]
         )
     }
 
@@ -120,15 +149,19 @@ enum LibraryScanner {
         guard let entries = listing(of: directory) else { return [] }
         let images =
             entries
-            .filter { isImageFile($0.url) }
+            .filter { !$0.isDirectory && isImageFile($0.url) }
             .sorted(by: pageOrder)
+        let comics =
+            entries
+            .filter { !$0.isDirectory && isComicFile($0.url) }
+            .sorted(by: entryOrder)
         let subdirectories =
             entries
             .filter { $0.isDirectory && !$0.isSymlink }
             .sorted(by: entryOrder)
 
-        let subdirectoriesWithImages = subdirectories.filter {
-            containsImages(in: $0.url, depth: depth + 1)
+        let subdirectoriesWithPages = subdirectories.filter {
+            containsPages(in: $0.url, depth: depth + 1)
         }
 
         // A folder with a handful of images and image subfolders is usually a
@@ -137,33 +170,93 @@ enum LibraryScanner {
         // chapter.
         let directoryIsChapter =
             !images.isEmpty
-            && (subdirectoriesWithImages.isEmpty || images.count >= 3)
+            && (subdirectoriesWithPages.isEmpty || images.count >= 3)
+
+        var chapters: [ChapterItem] = []
 
         if directoryIsChapter {
             let relative = relativePath(of: directory, from: mangaRoot)
             let title = relative.isEmpty ? directory.lastPathComponent : relative
             let chapterID = relativePath(of: directory, from: projectRoot)
-            return [
+            chapters.append(
                 ChapterItem(
                     id: chapterID.isEmpty ? "." : chapterID,
                     title: title,
-                    directoryURL: directory,
-                    pages: images.map { PageItem(url: $0.url) }
+                    containerURL: directory,
+                    pages: images.map { PageItem(source: .imageFile($0.url)) }
                 )
-            ]
+            )
+        } else {
+            for subdirectory in subdirectoriesWithPages {
+                chapters.append(
+                    contentsOf: collectChapters(
+                        in: subdirectory.url,
+                        mangaRoot: mangaRoot,
+                        projectRoot: projectRoot,
+                        depth: depth + 1
+                    ))
+            }
         }
 
-        var chapters: [ChapterItem] = []
-        for subdirectory in subdirectoriesWithImages {
-            chapters.append(
-                contentsOf: collectChapters(
-                    in: subdirectory.url,
-                    mangaRoot: mangaRoot,
-                    projectRoot: projectRoot,
-                    depth: depth + 1
-                ))
+        // Archives and PDFs inside a manga folder are chapters of their own,
+        // whether or not the folder also holds loose images.
+        for comic in comics {
+            let relative = relativePath(of: comic.url, from: mangaRoot)
+            let title =
+                relative.isEmpty
+                ? comic.url.deletingPathExtension().lastPathComponent
+                : (relative as NSString).deletingPathExtension
+            if let chapter = makeComicChapter(
+                file: comic.url,
+                projectRoot: projectRoot,
+                title: title
+            ) {
+                chapters.append(chapter)
+            }
         }
+
         return chapters
+    }
+
+    private static func makeComicChapter(
+        file: URL,
+        projectRoot: URL,
+        title: String
+    ) -> ChapterItem? {
+        let chapterID = relativePath(of: file, from: projectRoot)
+        let pages: [PageItem]
+
+        if PageFormat.isPDF(file) {
+            let count = PDFPageReader.pageCount(url: file)
+            guard count > 0 else {
+                logger.warning("Could not read PDF \(file.path, privacy: .public)")
+                return nil
+            }
+            pages = (0..<count).map {
+                PageItem(source: .pdfPage(pdfURL: file, pageIndex: $0))
+            }
+        } else {
+            let entries: [String]
+            do {
+                entries = try ArchiveListing.imageEntries(for: file)
+            } catch {
+                logger.warning(
+                    "Skipping archive \(file.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                return nil
+            }
+            guard !entries.isEmpty else { return nil }
+            pages = entries.map {
+                PageItem(source: .archiveEntry(archiveURL: file, entry: $0))
+            }
+        }
+
+        guard !pages.isEmpty else { return nil }
+        return ChapterItem(
+            id: chapterID.isEmpty ? "." : chapterID,
+            title: title,
+            containerURL: file,
+            pages: pages
+        )
     }
 
     // MARK: - Directory helpers
@@ -205,30 +298,30 @@ enum LibraryScanner {
         }
     }
 
-    private static func containsImages(in directory: URL, depth: Int) -> Bool {
+    private static func containsPages(in directory: URL, depth: Int) -> Bool {
         guard depth <= maxDepth, let entries = listing(of: directory) else { return false }
-        if entries.contains(where: { isImageFile($0.url) }) { return true }
+        if entries.contains(where: { !$0.isDirectory && isPageFile($0.url) }) { return true }
         return entries.contains {
-            $0.isDirectory && !$0.isSymlink && containsImages(in: $0.url, depth: depth + 1)
+            $0.isDirectory && !$0.isSymlink && containsPages(in: $0.url, depth: depth + 1)
         }
     }
 
     private static func isImageFile(_ url: URL) -> Bool {
-        let name = url.lastPathComponent
-        guard !name.hasPrefix(".") else { return false }
-        return imageExtensions.contains(url.pathExtension.lowercased())
+        PageFormat.isImageFile(url)
+    }
+
+    private static func isComicFile(_ url: URL) -> Bool {
+        PageFormat.isComicFile(url)
+    }
+
+    private static func isPageFile(_ url: URL) -> Bool {
+        PageFormat.isImageFile(url) || PageFormat.isComicFile(url)
     }
 
     /// Pages are sorted by name *without* the extension, so mixed formats are
     /// interleaved correctly: 1.webp, 2.webp, 3.jpg, 10.jpg, 20.webp.
     private static func pageOrder(_ lhs: Entry, _ rhs: Entry) -> Bool {
-        let left = lhs.url.deletingPathExtension().lastPathComponent
-        let right = rhs.url.deletingPathExtension().lastPathComponent
-        let result = left.localizedStandardCompare(right)
-        if result != .orderedSame { return result == .orderedAscending }
-        let ext = lhs.url.pathExtension.localizedStandardCompare(rhs.url.pathExtension)
-        if ext != .orderedSame { return ext == .orderedAscending }
-        return lhs.url.lastPathComponent.localizedStandardCompare(rhs.url.lastPathComponent) == .orderedAscending
+        PageFormat.pageOrder(lhs.url.lastPathComponent, rhs.url.lastPathComponent)
     }
 
     private static func entryOrder(_ lhs: Entry, _ rhs: Entry) -> Bool {

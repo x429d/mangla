@@ -14,7 +14,7 @@ final class ReadingSessionTests: XCTestCase {
         let manga = MangaItem(
             id: "manga",
             title: "Manga",
-            directoryURL: URL(fileURLWithPath: "/tmp/Manga"),
+            containerURL: URL(fileURLWithPath: "/tmp/Manga"),
             chapters: [firstChapter, secondChapter]
         )
         let collectionID = UUID()
@@ -44,7 +44,7 @@ final class ReadingSessionTests: XCTestCase {
         ChapterItem(
             id: id,
             title: name,
-            directoryURL: URL(fileURLWithPath: "/tmp/\(id)"),
+            containerURL: URL(fileURLWithPath: "/tmp/\(id)"),
             pages: [
                 PageItem(url: URL(fileURLWithPath: "/tmp/\(id)/1.jpg")),
                 PageItem(url: URL(fileURLWithPath: "/tmp/\(id)/2.jpg")),

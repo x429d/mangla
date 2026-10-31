@@ -130,7 +130,7 @@ final class PageContentView: CanvasSurfaceView {
     private let messageLabel = NSTextField(labelWithString: "")
     private let spinner = NSProgressIndicator()
 
-    private(set) var url: URL?
+    private(set) var source: PageSource?
     private(set) var hasImage = false
     private(set) var isLoading = false
 
@@ -187,14 +187,26 @@ final class PageContentView: CanvasSurfaceView {
         )
     }
 
-    func beginLoading(for url: URL) {
-        self.url = url
+    func beginLoading(for source: PageSource) {
+        self.source = source
         imageView.image = nil
         hasImage = false
         isLoading = true
         messageLabel.isHidden = true
         spinner.isHidden = false
         spinner.startAnimation(nil)
+    }
+
+    /// Reloads the visible page at a higher detail level. The current bitmap
+    /// stays on screen until the sharper one arrives so zooming does not flash.
+    func beginUpgrade() {
+        guard hasImage else { return }
+        isLoading = true
+        messageLabel.isHidden = true
+    }
+
+    func cancelUpgrade() {
+        isLoading = false
     }
 
     func show(image: CGImage) {
@@ -215,7 +227,7 @@ final class PageContentView: CanvasSurfaceView {
         isLoading = false
         spinner.stopAnimation(nil)
         spinner.isHidden = true
-        messageLabel.stringValue = tf(.openPageFailed, url?.lastPathComponent ?? "")
+        messageLabel.stringValue = tf(.openPageFailed, source?.displayName ?? "")
         messageLabel.isHidden = false
     }
 

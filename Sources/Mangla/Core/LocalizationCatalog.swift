@@ -196,6 +196,14 @@ enum LocKey: String, CaseIterable, Sendable {
     case decodeCannotOpen
     case decodeCannotDecode
     case decodeCannotReadSize
+    case decodeInvalidImage
+    case archiveUnreadable
+    case archiveUnsupported
+    case archiveEncrypted
+    case archiveEntryMissing
+    case archiveTooLarge
+    case archiveToolUnavailable
+    case pdfUnreadable
 
     // Pagination
     case rangeEmpty
@@ -406,6 +414,14 @@ extension LocKey {
         .decodeCannotOpen: "Couldn't open %@",
         .decodeCannotDecode: "Couldn't decode %@",
         .decodeCannotReadSize: "Couldn't read the size of %@",
+        .decodeInvalidImage: "Couldn't decode the image",
+        .archiveUnreadable: "Couldn't read the archive",
+        .archiveUnsupported: "This archive format isn't supported",
+        .archiveEncrypted: "The archive is password protected",
+        .archiveEntryMissing: "Couldn't find %@ in the archive",
+        .archiveTooLarge: "The file inside the archive is too large",
+        .archiveToolUnavailable: "The system archive tool is unavailable",
+        .pdfUnreadable: "Couldn't read the PDF",
         .rangeEmpty: "0 of 0",
         .rangeLabel: "%1$d–%2$d of %3$d",
         .addCollectionsTitle: "Add Collections",
@@ -609,6 +625,14 @@ extension LocKey {
         .decodeCannotOpen: "Не удалось открыть %@",
         .decodeCannotDecode: "Не удалось декодировать %@",
         .decodeCannotReadSize: "Не удалось прочитать размер %@",
+        .decodeInvalidImage: "Не удалось декодировать изображение",
+        .archiveUnreadable: "Не удалось прочитать архив",
+        .archiveUnsupported: "Этот формат архива не поддерживается",
+        .archiveEncrypted: "Архив защищён паролем",
+        .archiveEntryMissing: "Не удалось найти %@ в архиве",
+        .archiveTooLarge: "Слишком большой файл внутри архива",
+        .archiveToolUnavailable: "Системная утилита для архивов недоступна",
+        .pdfUnreadable: "Не удалось прочитать PDF",
         .rangeEmpty: "0 из 0",
         .rangeLabel: "%1$d–%2$d из %3$d",
         .addCollectionsTitle: "Добавить коллекции",

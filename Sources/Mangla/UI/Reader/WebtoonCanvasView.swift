@@ -38,7 +38,7 @@ struct WebtoonCanvasRepresentable: NSViewRepresentable {
         private var prefetchTask: Task<Void, Never>?
         private lazy var contextMenuController = ReaderContextMenuController(session: session)
 
-        private var currentURLs: [URL] = []
+        private var currentSources: [PageSource] = []
         private var pageHeights: [CGFloat] = []
         private var pageTops: [CGFloat] = []
         private var generation = 0
@@ -113,10 +113,10 @@ struct WebtoonCanvasRepresentable: NSViewRepresentable {
             guard installed, self.scrollView != nil else { return }
             guard viewport.width > 1, viewport.height > 1 else { return }
 
-            let urls = pages.map(\.url)
-            if urls != currentURLs {
+            let sources = pages.map(\.source)
+            if sources != currentSources {
                 rebuildPageViews(count: pages.count)
-                currentURLs = urls
+                currentSources = sources
                 didInitialScroll = false
             }
 
@@ -282,12 +282,12 @@ struct WebtoonCanvasRepresentable: NSViewRepresentable {
 
         private func prefetch(window: ClosedRange<Int>) {
             prefetchTask?.cancel()
-            let urls = window.compactMap { index -> URL? in
-                session.pageSlots.indices.contains(index) ? session.pageSlots[index].url : nil
+            let sources = window.compactMap { index -> PageSource? in
+                session.pageSlots.indices.contains(index) ? session.pageSlots[index].source : nil
             }
             prefetchTask = Task {
                 guard !Task.isCancelled else { return }
-                await ImagePrefetcher.shared.updatePrefetchWindow(urls)
+                await ImagePrefetcher.shared.updatePrefetchWindow(sources)
             }
         }
 
@@ -299,11 +299,11 @@ struct WebtoonCanvasRepresentable: NSViewRepresentable {
             let slot = session.pageSlots[index]
             if view.hasImage || view.isLoading { return }
 
-            view.beginLoading(for: slot.url)
+            view.beginLoading(for: slot.source)
             let generation = generation
             let task = Task { [weak self, weak view] in
                 do {
-                    let image = try await ImagePrefetcher.shared.image(for: slot.url)
+                    let image = try await ImagePrefetcher.shared.image(for: slot.source)
                     guard !Task.isCancelled else { return }
                     guard let self, self.generation == generation else { return }
                     guard let view,
