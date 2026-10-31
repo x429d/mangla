@@ -528,19 +528,14 @@ final class RarToolTests: XCTestCase {
 
 @MainActor
 final class ArchiveReadingSessionTests: XCTestCase {
-    private var root: URL!
-
-    override func setUpWithError() throws {
-        root = FileManager.default.temporaryDirectory
+    // Setup stays inside the test: `XCTestCase.setUpWithError` is nonisolated,
+    // while this class needs the main actor for AppModel and ReadingSession.
+    func testArchiveChapterBuildsSlotsFromRealPageSizes() async throws {
+        let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("ManglaArchiveSession-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-    }
+        defer { try? FileManager.default.removeItem(at: root) }
 
-    override func tearDownWithError() throws {
-        try? FileManager.default.removeItem(at: root)
-    }
-
-    func testArchiveChapterBuildsSlotsFromRealPageSizes() async throws {
         let first = try ImageFixture.pngData(width: 40, height: 60)
         let second = try ImageFixture.pngData(width: 30, height: 50)
         let url = root.appendingPathComponent("One Shot.cbz")
