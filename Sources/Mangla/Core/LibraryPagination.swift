@@ -2,7 +2,7 @@ import Foundation
 
 /// Pure pagination math for the library grid.
 enum LibraryPagination {
-    static let defaultPageSize = 30
+    static let defaultPageSize = 32
 
     static func pageCount(total: Int, pageSize: Int = defaultPageSize) -> Int {
         guard total > 0, pageSize > 0 else { return 1 }
