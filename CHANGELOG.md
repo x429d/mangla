@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-01
+
+### Added
+
+- The library shows 32 manga per page instead of 30.
+
 ### Fixed
 
 - Adding more than a few large collections no longer exhausts the app's file descriptors. Folder watching now uses one FSEvents stream per collection instead of one vnode source per directory, so covers, pages, and archives keep loading.
