@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- Adding more than a few large collections no longer exhausts the app's file descriptors. Folder watching now uses one FSEvents stream per collection instead of one vnode source per directory, so covers, pages, and archives keep loading.
+
 ## [1.1.0] - 2026-10-31
 
 ### Added

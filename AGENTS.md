@@ -79,7 +79,7 @@ swift format format --in-place --recursive Sources Tests
 - Supported layouts are collection → manga → pages and collection → manga → chapter → pages. A collection root may also be a manga. Image folders, `.cbz`/`.cbr` files, and `.pdf` files can be mixed at either level.
 - Inside a manga folder, image folders and archive/PDF files each become a chapter; a loose archive or PDF at the collection root becomes its own manga.
 - Traversal stops at 8 folder levels; truncation and unreadable folders and archives must be logged.
-- Folder watching covers the collection root, manga folders, and chapter folders, capped at 200 directories per collection. Archive chapter files are never watched directly (reads would fire vnode events); only directories get a watcher. Document any change to that cap.
+- Folder watching is one FSEvents stream per collection root instead of a vnode source per directory. It covers manga and chapter folders without holding a file descriptor per directory, and there is no directory cap. File events without a structural change (created, removed, or renamed) are ignored so reading pages or archives cannot trigger rescans.
 - Ignore hidden files, `__MACOSX`, and symlinks, both on disk and inside archives.
 
 ## Archives and PDFs
