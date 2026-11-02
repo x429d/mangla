@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-02
+
+### Fixed
+
+- Webtoon scrolling no longer stalls in long chapters. The strip keeps its geometry cached, lays out only when pages or the viewport change, creates page views on demand, and stops decoding pages that scrolled out of the window instead of leaving them in a queue.
+- Reading progress is written once scrolling pauses, so a hidden library is no longer redrawn for every page that passes through the viewport.
+
 ## [1.2.0] - 2026-11-01
 
 ### Added
