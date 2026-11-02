@@ -168,13 +168,18 @@ final class ReadingSession {
 
     @ObservationIgnored private var metadataTask: Task<Void, Never>?
     @ObservationIgnored private var toastTask: Task<Void, Never>?
+    @ObservationIgnored private var progressTask: Task<Void, Never>?
     @ObservationIgnored private var started = false
+    /// Continuous scrolling changes the visible page many times per second.
+    /// Progress settles after the scroll pauses instead of on every page.
+    private let progressDelay: Duration
 
     init(
         model: AppModel,
         manga: MangaItem,
         chapter: ChapterItem,
-        startPage: Int? = nil
+        startPage: Int? = nil,
+        progressDelay: Duration = .milliseconds(280)
     ) {
         self.model = model
         self.manga = manga
@@ -182,6 +187,7 @@ final class ReadingSession {
         self.storedLayoutMode = ReaderPreferences.layoutMode
         self.storedFitMode = ReaderPreferences.fitMode
         self.storedDirection = ReaderPreferences.direction
+        self.progressDelay = progressDelay
 
         let resumePage =
             startPage
@@ -409,7 +415,24 @@ final class ReadingSession {
         let clamped = min(max(index, 0), pageSlots.count - 1)
         guard clamped != currentPageIndex else { return }
         currentPageIndex = clamped
-        recordProgress()
+        scheduleProgressRecord()
+    }
+
+    private func scheduleProgressRecord() {
+        progressTask?.cancel()
+        progressTask = Task { [weak self] in
+            guard let delay = self?.progressDelay else { return }
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled, let self else { return }
+            self.progressTask = nil
+            self.recordProgress()
+        }
+    }
+
+    /// Waits for a pending scroll-driven progress write. Tests use this instead
+    /// of sleeping.
+    func waitForPendingProgress() async {
+        await progressTask?.value
     }
 
     func nextChapter() {
@@ -524,6 +547,8 @@ final class ReadingSession {
     // MARK: Progress
 
     func recordProgress(force: Bool = false) {
+        progressTask?.cancel()
+        progressTask = nil
         guard !pageSlots.isEmpty else { return }
         guard force || currentPageIndex >= 0 else { return }
         let completed = currentPageIndex >= pageSlots.count - 1
@@ -537,6 +562,8 @@ final class ReadingSession {
 
     func close() {
         metadataTask?.cancel()
+        progressTask?.cancel()
+        progressTask = nil
         if !pageSlots.isEmpty {
             recordProgress(force: true)
         }

@@ -209,6 +209,13 @@ final class PageContentView: CanvasSurfaceView {
         isLoading = false
     }
 
+    /// Stops a queued decode without blanking an image that is already shown.
+    func cancelLoading() {
+        isLoading = false
+        spinner.stopAnimation(nil)
+        spinner.isHidden = true
+    }
+
     func show(image: CGImage) {
         hasImage = true
         isLoading = false

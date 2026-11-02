@@ -13,6 +13,7 @@ actor ImagePrefetcher {
     private let cache = NSCache<NSString, CGImage>()
     private let decodeGate = DecodeGate(limit: 2)
     private var loadTasks: [String: Task<CGImage, Error>] = [:]
+    private var loadTokens: [String: UUID] = [:]
     private var speculativeTasks: [String: SpeculativeEntry] = [:]
     private var epoch = 0
 
@@ -28,27 +29,49 @@ actor ImagePrefetcher {
 
     // MARK: - Visible page request
 
-    func image(for source: PageSource, quality: PageRenderQuality = .standard) async throws -> CGImage {
+    /// `request` identifies the reader window that owns the decode. A later
+    /// request for the same page takes ownership, so a cancellation queued by
+    /// the previous window cannot stop the new one.
+    func image(
+        for source: PageSource,
+        quality: PageRenderQuality = .standard,
+        request: UUID? = nil
+    ) async throws -> CGImage {
         let key = Self.key(for: source, quality: quality)
         if let cached = cache.object(forKey: key as NSString) {
             return cached
         }
 
         if let existing = loadTasks[key] {
-            return try await existing.value
+            if existing.isCancelled {
+                loadTasks[key] = nil
+                loadTokens[key] = nil
+            } else {
+                if let request {
+                    loadTokens[key] = request
+                }
+                let image = try await existing.value
+                if let request {
+                    finishLoad(key: key, token: request)
+                }
+                return image
+            }
         }
 
+        let token = request ?? UUID()
         let currentEpoch = epoch
+        try Task.checkCancellation()
 
         if let speculative = speculativeTasks.removeValue(forKey: key) {
             loadTasks[key] = speculative.task
+            loadTokens[key] = token
             do {
                 let image = try await speculative.task.value
                 store(image, for: key, epoch: currentEpoch)
-                loadTasks[key] = nil
+                finishLoad(key: key, token: token)
                 return image
             } catch {
-                loadTasks[key] = nil
+                finishLoad(key: key, token: token)
                 throw error
             }
         }
@@ -60,13 +83,14 @@ actor ImagePrefetcher {
             gate: decodeGate
         )
         loadTasks[key] = task
+        loadTokens[key] = token
         do {
             let image = try await task.value
             store(image, for: key, epoch: currentEpoch)
-            loadTasks[key] = nil
+            finishLoad(key: key, token: token)
             return image
         } catch {
-            loadTasks[key] = nil
+            finishLoad(key: key, token: token)
             throw error
         }
     }
@@ -80,6 +104,9 @@ actor ImagePrefetcher {
     /// Declares the complete set of pages worth having in memory. Speculative
     /// decodes outside of this set are cancelled; missing ones are started.
     func updatePrefetchWindow(_ sources: [PageSource]) {
+        // A replaced window is cancelled from the canvas, but its actor call
+        // may already be queued. Do not start work for it.
+        guard !Task.isCancelled else { return }
         let wanted = Set(sources.map { Self.key(for: $0, quality: .standard) })
 
         for (key, entry) in speculativeTasks where !wanted.contains(key) {
@@ -116,7 +143,22 @@ actor ImagePrefetcher {
         speculativeTasks.removeAll()
         for task in loadTasks.values { task.cancel() }
         loadTasks.removeAll()
+        loadTokens.removeAll()
         cache.removeAllObjects()
+    }
+
+    /// Stops decodes for pages that left the reader's window. Without this, a
+    /// fast scroll leaves a queue of full-size decodes that keeps the CPU busy
+    /// long after those pages became invisible. The token makes the
+    /// cancellation a no-op when the page already has a newer owner.
+    func cancelLoads(_ requests: [PageSource: UUID], quality: PageRenderQuality = .standard) {
+        for (source, token) in requests {
+            let key = Self.key(for: source, quality: quality)
+            guard loadTokens[key] == token else { continue }
+            loadTasks.removeValue(forKey: key)?.cancel()
+            loadTokens[key] = nil
+            speculativeTasks.removeValue(forKey: key)?.task.cancel()
+        }
     }
 
     // MARK: - Private
@@ -129,6 +171,12 @@ actor ImagePrefetcher {
     ) -> String {
         guard source.isPDF else { return source.cacheKey }
         return "\(source.cacheKey)|\(quality.cacheSuffix)"
+    }
+
+    private func finishLoad(key: String, token: UUID) {
+        guard loadTokens[key] == token else { return }
+        loadTasks[key] = nil
+        loadTokens[key] = nil
     }
 
     private func finishSpeculative(key: String, id: UUID, image: CGImage?) {

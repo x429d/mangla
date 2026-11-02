@@ -28,26 +28,39 @@ struct WebtoonCanvasRepresentable: NSViewRepresentable {
 
     @MainActor
     final class Coordinator: NSObject, ReaderCanvasControlling {
+        /// Pages kept decoded around the visible one. The strip itself can hold
+        /// thousands of pages; only this window is ever materialised.
+        private static let loadWindowBefore = 2
+        private static let loadWindowAfter = 4
+        private static let retentionWindowBefore = 8
+        private static let retentionWindowAfter = 8
+
         let session: ReadingSession
 
         private(set) var scrollView: ReaderScrollView?
         private let container = CanvasSurfaceView()
         private let strip = CanvasSurfaceView()
-        private var pageViews: [PageContentView] = []
+        /// Lazily created page views. Indexes outside the visited window stay
+        /// `nil`, so opening a long chapter no longer builds thousands of views.
+        private var pageViews: [PageContentView?] = []
         private var loadTasks: [Int: Task<Void, Never>] = [:]
+        private var loadTokens: [Int: UUID] = [:]
         private var prefetchTask: Task<Void, Never>?
         private lazy var contextMenuController = ReaderContextMenuController(session: session)
 
+        private var currentPages: [PageSlot] = []
         private var currentSources: [PageSource] = []
-        private var pageHeights: [CGFloat] = []
-        private var pageTops: [CGFloat] = []
+        private var stripLayout = WebtoonStripLayout.empty
         private var generation = 0
         private var installed = false
+        private var isUpdating = false
         private var lastWidth: CGFloat = 0
+        private var lastViewportHeight: CGFloat = 0
         private var lastSeekID = 0
         private var didInitialScroll = false
         private var lastVisiblePage = -1
-        private var lastLoadedWindow: ClosedRange<Int>?
+        private var lastLoadedWindow: PageWindow?
+        private var lastRetentionWindow: PageWindow?
 
         init(session: ReadingSession) {
             self.session = session
@@ -110,141 +123,186 @@ struct WebtoonCanvasRepresentable: NSViewRepresentable {
         }
 
         func update(pages: [PageSlot], seek: WebtoonSeekRequest, viewport: CGSize) {
-            guard installed, self.scrollView != nil else { return }
+            guard installed else { return }
             guard viewport.width > 1, viewport.height > 1 else { return }
 
-            let sources = pages.map(\.source)
-            if sources != currentSources {
-                rebuildPageViews(count: pages.count)
-                currentSources = sources
+            // Scrolling changes `currentPageIndex` on every other page, which
+            // re-runs this update. Keep those passes free of layout work.
+            isUpdating = true
+
+            let pagesChanged = pages != currentPages || pageViews.count != pages.count
+            if pagesChanged {
+                rebuildPageViews(count: pages.count, releasing: currentPages.map(\.source))
+                currentPages = pages
+                currentSources = pages.map(\.source)
                 didInitialScroll = false
             }
 
-            let widthChanged = abs(viewport.width - lastWidth) > 0.5
-            let anchor = widthChanged && didInitialScroll ? currentAnchor() : nil
-            let oldStripWidth = strip.frame.width
-
             let width = max(viewport.width, 1)
-            let stripWidth = min(width, 1000)
-            let heights = pages.map { page in
-                max(160, stripWidth / max(page.aspectRatio, 0.05))
-            }
-            let totalHeight = heights.reduce(0, +)
-            pageHeights = heights
-            pageTops = []
-            pageTops.reserveCapacity(heights.count)
-            var top: CGFloat = 0
-            for height in heights {
-                pageTops.append(top)
-                top += height
-            }
+            let widthChanged = abs(width - lastWidth) > 0.5
+            let needsLayout = pagesChanged || widthChanged || stripLayout.heights.count != pages.count
 
-            container.frame = CGRect(
-                x: 0,
-                y: 0,
-                width: width,
-                height: max(viewport.height, totalHeight)
-            )
-            strip.frame = CGRect(
-                x: (width - stripWidth) / 2,
-                y: 0,
-                width: stripWidth,
-                height: max(totalHeight, 1)
-            )
+            var anchor: (page: Int, offset: CGFloat)?
+            var previousStripWidth: CGFloat = 0
 
-            for (index, view) in pageViews.enumerated() where heights.indices.contains(index) {
-                view.frame = CGRect(x: 0, y: pageTops[index], width: stripWidth, height: heights[index])
+            if needsLayout {
+                if widthChanged, didInitialScroll {
+                    anchor = currentAnchor()
+                    previousStripWidth = stripLayout.stripWidth
+                }
+                stripLayout = WebtoonStripLayout.make(pages: pages, viewportWidth: width)
+                lastWidth = width
+                applyLayout(viewportHeight: viewport.height)
+            } else if abs(viewport.height - lastViewportHeight) > 0.5 {
+                lastViewportHeight = viewport.height
+                container.frame.size.height = max(viewport.height, stripLayout.totalHeight)
             }
-
-            lastWidth = width
-            scrollView?.layoutSubtreeIfNeeded()
-            syncPanState()
 
             if !didInitialScroll {
                 didInitialScroll = true
                 let page = min(max(session.currentPageIndex, 0), max(0, pages.count - 1))
                 scrollTo(page: page, extra: 0)
-            } else if let anchor, oldStripWidth > 0 {
-                let ratio = stripWidth / oldStripWidth
+            } else if let anchor, previousStripWidth > 0 {
+                let ratio = stripLayout.stripWidth / previousStripWidth
                 scrollTo(page: anchor.page, extra: anchor.offset * ratio)
             }
 
+            var didSeek = false
             if seek.id != lastSeekID {
                 lastSeekID = seek.id
                 scrollTo(page: seek.page, extra: 0)
+                didSeek = true
             }
 
-            Task { @MainActor [weak self] in
-                self?.updateVisiblePage(force: true)
+            isUpdating = false
+
+            if needsLayout || didSeek {
+                Task { @MainActor [weak self] in
+                    guard let self, self.installed else { return }
+                    self.updateVisiblePage(force: true)
+                }
             }
         }
 
         // MARK: - Layout helpers
 
-        private func rebuildPageViews(count: Int) {
+        private func applyLayout(viewportHeight: CGFloat) {
+            guard let scrollView else { return }
+            lastViewportHeight = viewportHeight
+            container.frame = CGRect(
+                x: 0,
+                y: 0,
+                width: lastWidth,
+                height: max(viewportHeight, stripLayout.totalHeight)
+            )
+            strip.frame = CGRect(
+                x: (lastWidth - stripLayout.stripWidth) / 2,
+                y: 0,
+                width: stripLayout.stripWidth,
+                height: max(stripLayout.totalHeight, 1)
+            )
+
+            for (index, view) in pageViews.enumerated() {
+                if let view {
+                    applyFrame(to: view, at: index)
+                }
+            }
+
+            scrollView.layoutSubtreeIfNeeded()
+            syncPanState()
+        }
+
+        private func applyFrame(to view: PageContentView, at index: Int) {
+            guard stripLayout.tops.indices.contains(index) else { return }
+            view.frame = CGRect(
+                x: 0,
+                y: stripLayout.tops[index],
+                width: stripLayout.stripWidth,
+                height: stripLayout.heights[index]
+            )
+        }
+
+        private func makePageView() -> PageContentView {
+            let view = PageContentView()
+            view.onClick = { [weak self] event in self?.handleClick(event) }
+            view.onPointerMove = { [weak self] event in self?.pointerMoved(event) }
+            view.onPageStep = { [weak self] forward in self?.handlePageStep(forward) }
+            view.onPan = { [weak self] dx, dy in self?.pan(dx: dx, dy: dy) }
+            view.onContextMenu = { [weak self] _ in self?.contextMenuController.makeMenu() }
+            view.isPanEnabled = scrollView?.canPan ?? false
+            return view
+        }
+
+        private func pageView(at index: Int) -> PageContentView? {
+            guard pageViews.indices.contains(index) else { return nil }
+            if let view = pageViews[index] { return view }
+
+            let view = makePageView()
+            pageViews[index] = view
+            strip.addSubview(view)
+            applyFrame(to: view, at: index)
+            return view
+        }
+
+        private func rebuildPageViews(count: Int, releasing sources: [PageSource]) {
             generation += 1
             for task in loadTasks.values { task.cancel() }
             loadTasks.removeAll()
-            for view in pageViews { view.removeFromSuperview() }
-            pageViews = (0..<count).map { _ in
-                let view = PageContentView()
-                view.onClick = { [weak self] event in self?.handleClick(event) }
-                view.onPointerMove = { [weak self] event in self?.pointerMoved(event) }
-                view.onPageStep = { [weak self] forward in self?.handlePageStep(forward) }
-                view.onPan = { [weak self] dx, dy in self?.pan(dx: dx, dy: dy) }
-                view.onContextMenu = { [weak self] _ in self?.contextMenuController.makeMenu() }
-                view.isPanEnabled = scrollView?.canPan ?? false
-                return view
+            let requests = releaseRequests(for: Array(loadTokens.keys), sources: sources)
+            loadTokens.removeAll()
+            if !requests.isEmpty {
+                Task { await ImagePrefetcher.shared.cancelLoads(requests) }
             }
-            for view in pageViews { strip.addSubview(view) }
+
+            for view in pageViews.compactMap({ $0 }) {
+                view.removeFromSuperview()
+            }
+            pageViews = Array(repeating: nil, count: count)
+            stripLayout = .empty
             lastLoadedWindow = nil
+            lastRetentionWindow = nil
             lastVisiblePage = -1
         }
 
+        /// Page sources paired with the token that owns their decode, so a
+        /// cancellation arriving late cannot stop a newer load of the same page.
+        private func releaseRequests(for indices: [Int], sources: [PageSource]) -> [PageSource: UUID] {
+            var requests: [PageSource: UUID] = [:]
+            for index in indices where sources.indices.contains(index) {
+                if let token = loadTokens[index] {
+                    requests[sources[index]] = token
+                }
+            }
+            return requests
+        }
+
         private func currentAnchor() -> (page: Int, offset: CGFloat)? {
-            guard let scrollView, !pageTops.isEmpty else { return nil }
-            let page = visiblePageIndex(in: scrollView)
-            let offset = max(0, scrollView.documentVisibleRect.minY - pageTops[page])
+            guard let scrollView, !stripLayout.tops.isEmpty else { return nil }
+            let visible = scrollView.documentVisibleRect
+            let page = stripLayout.pageIndex(containingY: visible.midY)
+            let offset = max(0, visible.minY - stripLayout.tops[page])
             return (page, offset)
         }
 
         private func scrollTo(page: Int, extra: CGFloat) {
-            guard let scrollView, !pageTops.isEmpty else { return }
-            let index = min(max(page, 0), pageTops.count - 1)
-            let y = pageTops[index] + extra
+            guard let scrollView, !stripLayout.tops.isEmpty else { return }
+            let index = min(max(page, 0), stripLayout.tops.count - 1)
+            let y = stripLayout.tops[index] + extra
             scrollView.layoutSubtreeIfNeeded()
             scrollView.contentView.scroll(to: NSPoint(x: 0, y: y))
             scrollView.reflectScrolledClipView(scrollView.contentView)
         }
 
-        private func visiblePageIndex(in scrollView: NSScrollView) -> Int {
-            guard !pageTops.isEmpty else { return 0 }
-            let center = scrollView.documentVisibleRect.midY
-            var low = 0
-            var high = pageTops.count - 1
-            var result = 0
-            while low <= high {
-                let mid = (low + high) / 2
-                if pageTops[mid] <= center {
-                    result = mid
-                    low = mid + 1
-                } else {
-                    high = mid - 1
-                }
-            }
-            return result
-        }
-
         // MARK: - Visible tracking
 
         @objc private func boundsDidChange(_ notification: Notification) {
-            guard installed else { return }
+            guard installed, !isUpdating else { return }
             updateVisiblePage(force: false)
         }
 
         private func updateVisiblePage(force: Bool) {
-            guard let scrollView, !pageTops.isEmpty else { return }
-            let page = visiblePageIndex(in: scrollView)
+            guard let scrollView, !stripLayout.tops.isEmpty else { return }
+            let page = stripLayout.pageIndex(containingY: scrollView.documentVisibleRect.midY)
             if page != lastVisiblePage || force {
                 lastVisiblePage = page
                 session.noteVisiblePage(page)
@@ -253,36 +311,59 @@ struct WebtoonCanvasRepresentable: NSViewRepresentable {
         }
 
         private func maintainLoadWindow(center: Int) {
-            guard !pageViews.isEmpty else { return }
-            let lower = max(0, center - 2)
-            let upper = min(pageViews.count - 1, center + 4)
-            guard lower <= upper else { return }
-            let window = lower...upper
+            let pageCount = pageViews.count
+            guard
+                let window = PageWindow(
+                    center: center,
+                    before: Self.loadWindowBefore,
+                    after: Self.loadWindowAfter,
+                    pageCount: pageCount
+                )
+            else { return }
+            guard window != lastLoadedWindow else { return }
+            lastLoadedWindow = window
 
-            if lastLoadedWindow != window {
-                lastLoadedWindow = window
-                for index in window {
-                    loadPage(index)
-                }
-                prefetch(window: window)
+            for index in window.range {
+                loadPage(index)
+            }
+            prefetch(window: window)
 
-                let outdated = loadTasks.keys.filter { $0 < lower - 6 || $0 > upper + 6 }
-                for index in outdated {
-                    loadTasks[index]?.cancel()
-                    loadTasks[index] = nil
+            let stale = loadTasks.keys.filter { !window.contains($0) }
+            let requests = releaseRequests(for: stale, sources: currentSources)
+            for index in stale {
+                loadTasks[index]?.cancel()
+                loadTasks[index] = nil
+                loadTokens[index] = nil
+                pageViews[index]?.cancelLoading()
+            }
+            if !requests.isEmpty {
+                Task { await ImagePrefetcher.shared.cancelLoads(requests) }
+            }
+
+            guard
+                let retention = PageWindow(
+                    center: center,
+                    before: Self.retentionWindowBefore,
+                    after: Self.retentionWindowAfter,
+                    pageCount: pageCount
+                )
+            else { return }
+
+            if let previous = lastRetentionWindow {
+                for index in previous.indices(excluding: retention) {
+                    pageViews[index]?.clearImage()
                 }
-                for (index, view) in pageViews.enumerated()
-                where index < max(0, center - 8) || index > min(pageViews.count - 1, center + 8) {
-                    if view.hasImage {
-                        view.clearImage()
-                    }
+            } else {
+                for (index, view) in pageViews.enumerated() where !retention.contains(index) {
+                    view?.clearImage()
                 }
             }
+            lastRetentionWindow = retention
         }
 
-        private func prefetch(window: ClosedRange<Int>) {
+        private func prefetch(window: PageWindow) {
             prefetchTask?.cancel()
-            let sources = window.compactMap { index -> PageSource? in
+            let sources = window.range.compactMap { index -> PageSource? in
                 session.pageSlots.indices.contains(index) ? session.pageSlots[index].source : nil
             }
             prefetchTask = Task {
@@ -292,18 +373,24 @@ struct WebtoonCanvasRepresentable: NSViewRepresentable {
         }
 
         private func loadPage(_ index: Int) {
-            guard pageViews.indices.contains(index),
-                session.pageSlots.indices.contains(index)
+            guard currentSources.indices.contains(index),
+                session.pageSlots.indices.contains(index),
+                let view = pageView(at: index)
             else { return }
-            let view = pageViews[index]
-            let slot = session.pageSlots[index]
             if view.hasImage || view.isLoading { return }
 
+            let slot = session.pageSlots[index]
             view.beginLoading(for: slot.source)
             let generation = generation
+            let token = UUID()
+            loadTokens[index] = token
             let task = Task { [weak self, weak view] in
+                guard !Task.isCancelled else { return }
                 do {
-                    let image = try await ImagePrefetcher.shared.image(for: slot.source)
+                    let image = try await ImagePrefetcher.shared.image(
+                        for: slot.source,
+                        request: token
+                    )
                     guard !Task.isCancelled else { return }
                     guard let self, self.generation == generation else { return }
                     guard let view,
@@ -412,8 +499,9 @@ struct WebtoonCanvasRepresentable: NSViewRepresentable {
         private func syncPanState() {
             guard let scrollView else { return }
             let canPan = scrollView.canPan
-            let surfaces: [CanvasSurfaceView] = [container, strip] + pageViews
-            for view in surfaces {
+            container.isPanEnabled = canPan
+            strip.isPanEnabled = canPan
+            for view in pageViews.compactMap({ $0 }) {
                 view.isPanEnabled = canPan
             }
         }
@@ -472,6 +560,11 @@ struct WebtoonCanvasRepresentable: NSViewRepresentable {
             loadTasks.removeAll()
             prefetchTask?.cancel()
             prefetchTask = nil
+            let requests = releaseRequests(for: Array(loadTokens.keys), sources: currentSources)
+            loadTokens.removeAll()
+            if !requests.isEmpty {
+                Task { await ImagePrefetcher.shared.cancelLoads(requests) }
+            }
             scrollView?.cancelAnimations()
             session.bridge.detach(self)
             scrollView = nil
