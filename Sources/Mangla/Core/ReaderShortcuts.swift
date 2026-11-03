@@ -10,12 +10,14 @@ enum ReaderKeyCommand: Equatable, Sendable {
     case pageBackward
     case chapterForward
     case chapterBackward
+    case chapterList
     case firstPage
     case lastPage
     case screenForward
     case screenBackward
     case layout(LayoutMode)
     case toggleDirection
+    case toggleCoverPageOffset
     case fit(FitMode)
     case zoomIn
     case zoomOut
@@ -104,6 +106,8 @@ enum ReaderShortcuts {
             return .chapterBackward
         case 30:  // ]
             return .chapterForward
+        case 37:  // L
+            return .chapterList
         case 18:  // 1
             return .layout(.single)
         case 19:  // 2
@@ -112,6 +116,8 @@ enum ReaderShortcuts {
             return .layout(.webtoon)
         case 17:  // T
             return layoutMode == .webtoon ? nil : .toggleDirection
+        case 8:  // C
+            return layoutMode == .spread ? .toggleCoverPageOffset : nil
         case 4:  // H
             return layoutMode == .webtoon ? nil : .fit(.fitHeight)
         case 13:  // W

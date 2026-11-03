@@ -5,6 +5,7 @@ struct MangaGridCard: View {
     let status: ReadingStatus
     let fraction: Double
     let isActive: Bool
+    let isSelected: Bool
 
     let onOpen: () -> Void
     let onRestart: () -> Void
@@ -51,8 +52,14 @@ struct MangaGridCard: View {
             Button(t(.restart)) { onRestart() }
             if !manga.chapters.isEmpty {
                 Menu(t(.chaptersMenu)) {
-                    ForEach(manga.chapters.prefix(40)) { chapter in
-                        Button(chapter.title) { onOpenChapter(chapter) }
+                    if manga.chapters.count > ChapterMenu.groupSize {
+                        ForEach(ChapterMenu.groups(manga.chapters)) { group in
+                            Menu(tf(.chapterRange, group.lowerBound, group.upperBound)) {
+                                chapterButtons(group.chapters)
+                            }
+                        }
+                    } else {
+                        chapterButtons(manga.chapters)
                     }
                 }
             }
@@ -61,6 +68,13 @@ struct MangaGridCard: View {
                 onToggleRead()
             }
             Button(t(.revealInFinder)) { onReveal() }
+        }
+    }
+
+    @ViewBuilder
+    private func chapterButtons(_ chapters: [ChapterItem]) -> some View {
+        ForEach(chapters) { chapter in
+            Button(chapter.title) { onOpenChapter(chapter) }
         }
     }
 
@@ -128,10 +142,12 @@ struct MangaGridCard: View {
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .strokeBorder(
-                        isActive
-                            ? Theme.accent.opacity(0.55)
-                            : (hovering ? Color.white.opacity(0.2) : Theme.stroke),
-                        lineWidth: 1
+                        isSelected
+                            ? Theme.accent
+                            : (isActive
+                                ? Theme.accent.opacity(0.55)
+                                : (hovering ? Color.white.opacity(0.2) : Theme.stroke)),
+                        lineWidth: isSelected ? 2 : 1
                     )
             )
             .shadow(

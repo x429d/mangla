@@ -25,6 +25,30 @@ final class ImagePrefetcherTests: XCTestCase {
         XCTAssertNil(released)
     }
 
+    func testTrimMemoryDropsCachedPages() async throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ManglaPrefetcherTrim-\(UUID().uuidString).png")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try writePNG(to: url)
+
+        let source = PageSource.imageFile(url)
+        let prefetcher = ImagePrefetcher()
+        _ = try await prefetcher.image(for: source)
+        let cached = await prefetcher.cachedImage(for: source)
+        XCTAssertNotNil(cached)
+
+        await prefetcher.trimMemory()
+
+        let trimmed = await prefetcher.cachedImage(for: source)
+        XCTAssertNil(trimmed)
+
+        // The page must still decode after a cache trim; only the retained
+        // copy goes away.
+        let reloaded = try await prefetcher.image(for: source)
+        XCTAssertEqual(reloaded.width, 4)
+        await prefetcher.releaseMemory()
+    }
+
     private func writePNG(to url: URL) throws {
         let colorSpace = try XCTUnwrap(CGColorSpace(name: CGColorSpace.sRGB))
         let context = try XCTUnwrap(

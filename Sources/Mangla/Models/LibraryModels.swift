@@ -87,6 +87,23 @@ struct MangaItem: Identifiable, Hashable, Sendable {
     /// Folder, or the archive/PDF file when a single file is its own manga.
     let containerURL: URL
     let chapters: [ChapterItem]
+    /// Filesystem creation date of the container, with the modification date
+    /// as a fallback. Used by the "Date Added" library sort.
+    let addedAt: Date?
+
+    init(
+        id: String,
+        title: String,
+        containerURL: URL,
+        chapters: [ChapterItem],
+        addedAt: Date? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.containerURL = containerURL
+        self.chapters = chapters
+        self.addedAt = addedAt
+    }
 
     var chapterCount: Int { chapters.count }
     var pageCount: Int { chapters.reduce(0) { $0 + $1.pageCount } }
@@ -145,6 +162,33 @@ enum LibraryFilter: String, CaseIterable, Identifiable, Sendable {
         case .all: "square.grid.2x2"
         case .reading: "book"
         case .completed: "checkmark.circle"
+        }
+    }
+}
+
+enum LibrarySort: String, CaseIterable, Identifiable, Sendable {
+    case name
+    case recent
+    case chapterCount
+    case dateAdded
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .name: t(.sortName)
+        case .recent: t(.sortRecent)
+        case .chapterCount: t(.sortChapters)
+        case .dateAdded: t(.sortDateAdded)
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .name: "textformat.abc"
+        case .recent: "clock"
+        case .chapterCount: "list.number"
+        case .dateAdded: "calendar"
         }
     }
 }

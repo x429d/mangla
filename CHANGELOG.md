@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Spread mode keeps the first page as a cover by default, so subsequent two-page spreads match the artwork. The offset can be switched from the reader sidebar or with `C` in spread mode.
+- A searchable chapter picker in the reader opens any chapter without going back to the library (`L`).
+- The library supports keyboard navigation: `Cmd+F` focuses search, arrow keys move the card selection, `Return` opens it, and `Esc` clears it.
+- Plain `.zip` and `.rar` archives are scanned alongside `.cbz` and `.cbr`, and JPEG XL (`.jxl`) pages are supported.
+- The library can be sorted by name, recently read, chapter count, or date added, and remembers the choice.
+- Cached pages are dropped when the system reports memory pressure, without interrupting the page being read.
+
+### Fixed
+
+- The card context menu no longer stops at the first 40 chapters; long lists are grouped into ranges.
+- The native sidebar toggle is removed on window update events instead of a fixed 0.8-second timer.
+
 ## [1.3.0] - 2026-11-02
 
 ### Fixed

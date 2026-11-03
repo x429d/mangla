@@ -87,6 +87,23 @@ struct SidebarView: View {
             }
             .ignoresSafeArea()
         )
+        .onAppear {
+            consumeSearchFocusRequest()
+        }
+        .onChange(of: model.searchFocusRequest) { _, _ in
+            consumeSearchFocusRequest()
+        }
+        .onChange(of: searchFocused) { _, focused in
+            model.isLibrarySearchFocused = focused
+        }
+    }
+
+    /// Cmd+F can arrive while the sidebar is collapsed; expanding it creates
+    /// this view, so both `onAppear` and `onChange` check the pending request.
+    private func consumeSearchFocusRequest() {
+        guard model.searchFocusRequest > 0 else { return }
+        model.searchFocusRequest = 0
+        searchFocused = true
     }
 
     private var header: some View {

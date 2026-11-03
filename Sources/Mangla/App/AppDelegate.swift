@@ -90,6 +90,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private var window: ManglaWindow?
     private var hostingController: NSHostingController<RootView>?
     private var lastNavigationKeyTime: TimeInterval = 0
+    private var memoryPressureMonitor: MemoryPressureMonitor?
 
     // MARK: - Lifecycle
 
@@ -101,6 +102,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         buildMenu()
         createWindow()
         model.bootstrap()
+        startMemoryPressureMonitor()
 
         window?.makeKeyAndOrderFront(nil)
         window?.makeFirstResponder(window?.contentView)
@@ -109,7 +111,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        memoryPressureMonitor?.stop()
         model.shutdown()
+    }
+
+    private func startMemoryPressureMonitor() {
+        let monitor = MemoryPressureMonitor {
+            Task {
+                await ImagePrefetcher.shared.trimMemory()
+            }
+        }
+        monitor.start()
+        memoryPressureMonitor = monitor
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -172,7 +185,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             name: NSWindow.didUpdateNotification,
             object: window
         )
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+        // SwiftUI can install the toolbar while the window is being keyed, so
+        // the removal runs after the first key-window update as well. This is
+        // an event, not a fixed delay that races with a slow machine.
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(windowDidUpdate(_:)),
+            name: NSWindow.didBecomeKeyNotification,
+            object: window
+        )
+        DispatchQueue.main.async { [weak self] in
             self?.removeNativeSidebarToggle()
         }
     }
@@ -210,12 +232,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     // MARK: - Keyboard
 
     private func handleKey(_ event: NSEvent) -> Bool {
-        guard let session = model.reading else { return false }
+        guard let session = model.reading else { return handleLibraryKey(event) }
 
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
 
-        // The page field owns the keyboard while it is open; Enter is handled by
-        // its TextField, Esc cancels here.
+        // The chapter picker and the page field own the keyboard while they are
+        // open; Enter is handled by their controls, Esc closes them here.
+        if session.isChapterPickerVisible {
+            if event.keyCode == 53 {
+                session.hideChapterPicker()
+                return true
+            }
+            return false
+        }
+
         if session.isPageEntryVisible {
             if event.keyCode == 53 {
                 session.cancelPageEntry()
@@ -257,6 +287,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         return perform(command, in: session)
     }
 
+    /// Keyboard access for the library: arrow keys move a selection, Return
+    /// opens it, and Cmd+F focuses the search field. While the search field is
+    /// first responder, arrows and Return belong to the text editor.
+    private func handleLibraryKey(_ event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+
+        if flags.contains(.command) {
+            if event.keyCode == 3,
+                !flags.contains(.shift),
+                !flags.contains(.option),
+                !flags.contains(.control)
+            {
+                model.focusLibrarySearch()
+                return true
+            }
+            return false
+        }
+
+        guard !flags.contains(.control), !flags.contains(.option) else { return false }
+        guard !model.isLibrarySearchFocused else { return false }
+
+        switch event.keyCode {
+        case 123: model.moveLibrarySelection(.left)
+        case 124: model.moveLibrarySelection(.right)
+        case 125: model.moveLibrarySelection(.down)
+        case 126: model.moveLibrarySelection(.up)
+        case 36, 76: model.openSelectedManga()
+        case 53:
+            guard model.selectedMangaID != nil else { return false }
+            model.selectedMangaID = nil
+        default:
+            return false
+        }
+        return true
+    }
+
     private func perform(_ command: ReaderKeyCommand, in session: ReadingSession) -> Bool {
         switch command {
         case .close:
@@ -273,6 +339,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             session.nextChapter()
         case .chapterBackward:
             session.previousChapter()
+        case .chapterList:
+            session.toggleChapterPicker()
         case .firstPage:
             session.goToPage(0)
         case .lastPage:
@@ -289,6 +357,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             session.layoutMode = mode
         case .toggleDirection:
             session.toggleDirection()
+        case .toggleCoverPageOffset:
+            session.toggleCoverPageOffset()
         case .fit(let mode):
             session.fitMode = mode
         case .zoomIn:
@@ -355,6 +425,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         editMenu.addItem(withTitle: t(.menuCopy), action: #selector(NSText.copy(_:)), keyEquivalent: "c")
         editMenu.addItem(withTitle: t(.menuPaste), action: #selector(NSText.paste(_:)), keyEquivalent: "v")
         editMenu.addItem(withTitle: t(.menuSelectAll), action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        editMenu.addItem(.separator())
+        editMenu.addItem(menuItem(t(.menuFind), #selector(focusSearch(_:)), "f"))
 
         let readingMenuItem = NSMenuItem()
         mainMenu.addItem(readingMenuItem)
@@ -416,6 +488,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     @objc private func openProject(_ sender: Any?) { model.addCollections() }
     @objc private func refreshProject(_ sender: Any?) { model.refresh() }
+    @objc private func focusSearch(_ sender: Any?) { model.focusLibrarySearch() }
     @objc private func toggleSidebar(_ sender: Any?) {
         guard model.reading == nil else { return }
         model.toggleSidebar()
@@ -441,6 +514,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             return true
         case #selector(refreshProject(_:)):
             return model.selectedCollectionID != nil
+        case #selector(focusSearch(_:)):
+            return model.reading == nil && !model.collections.isEmpty
         case #selector(closeReader(_:)):
             return model.reading != nil
         case #selector(zoomIn(_:)), #selector(zoomOut(_:)), #selector(resetZoom(_:)):
