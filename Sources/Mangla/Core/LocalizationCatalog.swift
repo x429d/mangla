@@ -37,6 +37,7 @@ enum LocKey: String, CaseIterable, Sendable {
     case menuAddCollection
     case menuCloseReader
     case menuEdit
+    case menuFind
     case menuUndo
     case menuRedo
     case menuCut
@@ -73,6 +74,11 @@ enum LocKey: String, CaseIterable, Sendable {
     case collectionActions
     case scanningCollection
     case selectCollection
+    case sortByHelp
+    case sortName
+    case sortRecent
+    case sortChapters
+    case sortDateAdded
     case nothingFound
     case tryAnotherQuery
     case resetFilters
@@ -96,6 +102,7 @@ enum LocKey: String, CaseIterable, Sendable {
     case continueAction
     case restart
     case chaptersMenu
+    case chapterRange
     case markUnread
     case markRead
     case continueHeader
@@ -118,9 +125,12 @@ enum LocKey: String, CaseIterable, Sendable {
     case backToLibraryHelp
     case fit
     case direction
+    case coverOffset
+    case coverOffsetHelp
     case zoom
     case mode
     case page
+    case chapterPickerHelp
     case fitModeHelp
     case zoomInHelp
     case zoomOutHelp
@@ -137,6 +147,10 @@ enum LocKey: String, CaseIterable, Sendable {
 
     // Reader overlays and toasts
     case loadingChapter
+    case chapterPickerTitle
+    case chapterPickerSearch
+    case chapterPickerEmpty
+    case chapterPickerFooter
     case pageEntryHint
     case openPageFailed
     case toastLastChapter
@@ -163,6 +177,8 @@ enum LocKey: String, CaseIterable, Sendable {
     case helpScrollWebtoon
     case helpFirstLastPage
     case helpChapterBackForward
+    case helpChapterList
+    case helpCoverOffset
     case helpLayoutModes
     case helpDirection
     case helpFitModes
@@ -274,6 +290,7 @@ extension LocKey {
         .menuAddCollection: "Add Collection…",
         .menuCloseReader: "Close Reader",
         .menuEdit: "Edit",
+        .menuFind: "Find…",
         .menuUndo: "Undo",
         .menuRedo: "Redo",
         .menuCut: "Cut",
@@ -306,6 +323,11 @@ extension LocKey {
         .collectionActions: "Collection Actions",
         .scanningCollection: "Scanning collection…",
         .selectCollection: "Select a Collection",
+        .sortByHelp: "Sort Library",
+        .sortName: "Name",
+        .sortRecent: "Recently Read",
+        .sortChapters: "Chapter Count",
+        .sortDateAdded: "Date Added",
         .nothingFound: "Nothing Found",
         .tryAnotherQuery: "Try a different query or filter.",
         .resetFilters: "Reset Filters",
@@ -325,6 +347,7 @@ extension LocKey {
         .continueAction: "Continue",
         .restart: "Start Over",
         .chaptersMenu: "Chapters",
+        .chapterRange: "Chapters %1$d–%2$d",
         .markUnread: "Mark as Unread",
         .markRead: "Mark as Read",
         .continueHeader: "CONTINUE READING",
@@ -343,9 +366,12 @@ extension LocKey {
         .backToLibraryHelp: "Back to Library (Esc)",
         .fit: "Fit",
         .direction: "Direction",
+        .coverOffset: "Cover",
+        .coverOffsetHelp: "Keep the first page alone so two-page spreads line up (C)",
         .zoom: "Zoom",
         .mode: "Mode",
         .page: "Page",
+        .chapterPickerHelp: "Choose Chapter (L)",
         .fitModeHelp: "Fit mode (H / W / O)",
         .zoomInHelp: "Zoom In (⌘+)",
         .zoomOutHelp: "Zoom Out (⌘−)",
@@ -360,6 +386,10 @@ extension LocKey {
         .controlsHelp: "Controls & Shortcuts (?)",
         .fullScreenHelp: "Full Screen (F)",
         .loadingChapter: "Loading chapter",
+        .chapterPickerTitle: "Chapters",
+        .chapterPickerSearch: "Search chapters",
+        .chapterPickerEmpty: "No chapters found",
+        .chapterPickerFooter: "Esc — close · Return — open first match",
         .pageEntryHint: "Enter — go · Esc — cancel",
         .openPageFailed: "Couldn't open page\n%@",
         .toastLastChapter: "This is the last chapter in the collection",
@@ -383,6 +413,8 @@ extension LocKey {
         .helpScrollWebtoon: "Scroll (webtoon) / page",
         .helpFirstLastPage: "First / last page",
         .helpChapterBackForward: "Chapter back / forward",
+        .helpChapterList: "Chapter list",
+        .helpCoverOffset: "Cover page offset (spread)",
         .helpLayoutModes: "Page / spread / webtoon",
         .helpDirection: "Direction RTL ↔ LTR",
         .helpFitModes: "Fit height / width / 1:1",
@@ -484,6 +516,7 @@ extension LocKey {
         .menuAddCollection: "Добавить коллекцию…",
         .menuCloseReader: "Закрыть читалку",
         .menuEdit: "Правка",
+        .menuFind: "Найти…",
         .menuUndo: "Отменить",
         .menuRedo: "Повторить",
         .menuCut: "Вырезать",
@@ -517,6 +550,11 @@ extension LocKey {
         .collectionActions: "Действия с коллекцией",
         .scanningCollection: "Сканирую коллекцию…",
         .selectCollection: "Выберите коллекцию",
+        .sortByHelp: "Сортировка библиотеки",
+        .sortName: "По имени",
+        .sortRecent: "Недавно читанные",
+        .sortChapters: "По числу глав",
+        .sortDateAdded: "По дате добавления",
         .nothingFound: "Ничего не найдено",
         .tryAnotherQuery: "Попробуйте изменить запрос или фильтр.",
         .resetFilters: "Сбросить фильтры",
@@ -536,6 +574,7 @@ extension LocKey {
         .continueAction: "Продолжить",
         .restart: "Начать сначала",
         .chaptersMenu: "Главы",
+        .chapterRange: "Главы %1$d–%2$d",
         .markUnread: "Отметить непрочитанным",
         .markRead: "Отметить прочитанным",
         .continueHeader: "ПРОДОЛЖИТЬ ЧТЕНИЕ",
@@ -554,9 +593,12 @@ extension LocKey {
         .backToLibraryHelp: "Вернуться в библиотеку (Esc)",
         .fit: "Вписать",
         .direction: "Направление",
+        .coverOffset: "Обложка",
+        .coverOffsetHelp: "Показывать первую страницу отдельно, чтобы развороты совпадали (C)",
         .zoom: "Масштаб",
         .mode: "Режим",
         .page: "Страница",
+        .chapterPickerHelp: "Выбрать главу (L)",
         .fitModeHelp: "Режим вписывания (H / W / O)",
         .zoomInHelp: "Увеличить (⌘+)",
         .zoomOutHelp: "Уменьшить (⌘−)",
@@ -571,6 +613,10 @@ extension LocKey {
         .controlsHelp: "Управление и горячие клавиши (?)",
         .fullScreenHelp: "Полный экран (F)",
         .loadingChapter: "Загрузка главы",
+        .chapterPickerTitle: "Главы",
+        .chapterPickerSearch: "Поиск глав",
+        .chapterPickerEmpty: "Главы не найдены",
+        .chapterPickerFooter: "Esc — закрыть · Return — открыть первое совпадение",
         .pageEntryHint: "Enter — перейти · Esc — отмена",
         .openPageFailed: "Не удалось открыть страницу\n%@",
         .toastLastChapter: "Это последняя глава в коллекции",
@@ -594,6 +640,8 @@ extension LocKey {
         .helpScrollWebtoon: "Прокрутка (webtoon) / страница",
         .helpFirstLastPage: "Первая / последняя страница",
         .helpChapterBackForward: "Глава назад / вперёд",
+        .helpChapterList: "Список глав",
+        .helpCoverOffset: "Обложка отдельно (разворот)",
         .helpLayoutModes: "Страница / разворот / webtoon",
         .helpDirection: "Направление RTL ↔ LTR",
         .helpFitModes: "Вписать по высоте / ширине / 1:1",

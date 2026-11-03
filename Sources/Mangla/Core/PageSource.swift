@@ -65,10 +65,12 @@ enum PageRenderQuality: String, Hashable, Sendable {
 /// Formats and naming rules shared by the folder scanner and archive readers.
 enum PageFormat {
     static let imageExtensions: Set<String> = [
-        "webp", "jpg", "jpeg", "png", "avif", "heic",
+        "webp", "jpg", "jpeg", "png", "avif", "heic", "jxl",
     ]
 
-    static let archiveExtensions: Set<String> = ["cbz", "cbr"]
+    /// Plain `.zip`/`.rar` files are accepted next to the comic-specific
+    /// extensions. The actual format is still detected from the file header.
+    static let archiveExtensions: Set<String> = ["cbz", "cbr", "zip", "rar"]
     static let pdfExtensions: Set<String> = ["pdf"]
 
     static func isImageFile(_ url: URL) -> Bool {

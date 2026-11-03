@@ -64,6 +64,13 @@ final class ReaderShortcutsTests: XCTestCase {
         XCTAssertEqual(command(3), .toggleFullScreen)
     }
 
+    func testChapterListAndCoverOffsetKeys() {
+        XCTAssertEqual(command(37), .chapterList)
+        XCTAssertEqual(command(8, layout: .spread), .toggleCoverPageOffset)
+        XCTAssertNil(command(8))
+        XCTAssertNil(command(8, layout: .webtoon))
+    }
+
     func testZoomKeys() {
         XCTAssertEqual(command(24), .zoomIn)
         XCTAssertEqual(command(27), .zoomOut)

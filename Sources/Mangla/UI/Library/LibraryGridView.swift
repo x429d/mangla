@@ -123,45 +123,53 @@ struct LibraryGridView: View {
     }
 
     private var libraryScroll: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 24) {
-                topBar
-                header
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 24) {
+                    topBar
+                    header
 
-                if model.currentPage == 0,
-                    let target = model.continueTarget,
-                    model.searchText.isEmpty,
-                    model.filter == .all
-                {
-                    ContinueBanner(
-                        manga: target.manga,
-                        chapter: target.chapter,
-                        pageIndex: target.pageIndex,
-                        fraction: model.progressFraction(for: target.manga),
-                        onOpen: { model.continueReading() }
-                    )
+                    if model.currentPage == 0,
+                        let target = model.continueTarget,
+                        model.searchText.isEmpty,
+                        model.filter == .all
+                    {
+                        ContinueBanner(
+                            manga: target.manga,
+                            chapter: target.chapter,
+                            pageIndex: target.pageIndex,
+                            fraction: model.progressFraction(for: target.manga),
+                            onOpen: { model.continueReading() }
+                        )
+                    }
+
+                    gridSection
+                    footer
                 }
-
-                gridSection
-                footer
+                .padding(.horizontal, 30)
+                .padding(.top, sidebarCollapsed ? 54 : 38)
+                .padding(.bottom, 34)
             }
-            .padding(.horizontal, 30)
-            .padding(.top, sidebarCollapsed ? 54 : 38)
-            .padding(.bottom, 34)
-        }
-        .scrollIndicators(.never)
-        .id(libraryResetID)
-        .onChange(of: model.searchText) { _, _ in
-            model.resetPage()
-        }
-        .onChange(of: model.filter) { _, _ in
-            model.resetPage()
-        }
-        .onChange(of: model.selectedCollectionID) { _, _ in
-            model.resetPage()
-        }
-        .onChange(of: model.filteredMangas.count) { _, _ in
-            model.clampPage()
+            .scrollIndicators(.never)
+            .id(libraryResetID)
+            .onChange(of: model.searchText) { _, _ in
+                model.resetPage()
+            }
+            .onChange(of: model.filter) { _, _ in
+                model.resetPage()
+            }
+            .onChange(of: model.selectedCollectionID) { _, _ in
+                model.resetPage()
+            }
+            .onChange(of: model.filteredMangas.count) { _, _ in
+                model.clampPage()
+            }
+            .onChange(of: model.selectedMangaID) { _, id in
+                guard let id else { return }
+                withAnimation(.smooth(duration: 0.18)) {
+                    proxy.scrollTo(id, anchor: .center)
+                }
+            }
         }
     }
 
@@ -201,6 +209,33 @@ struct LibraryGridView: View {
                     .scaleEffect(0.7)
                     .frame(width: 18, height: 18)
             }
+
+            Menu {
+                ForEach(LibrarySort.allCases) { sort in
+                    Button {
+                        withAnimation(Theme.snappy) {
+                            model.sort = sort
+                        }
+                    } label: {
+                        Label(
+                            sort.title,
+                            systemImage: model.sort == sort ? "checkmark" : sort.symbol
+                        )
+                    }
+                }
+            } label: {
+                Image(systemName: "arrow.up.arrow.down")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Theme.textSecondary)
+                    .frame(width: 28, height: 28)
+                    .background(Circle().fill(Color.white.opacity(0.05)))
+                    .overlay(Circle().strokeBorder(Theme.stroke, lineWidth: 1))
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help(t(.sortByHelp))
+            .accessibilityLabel(Text(t(.sortByHelp)))
 
             Button {
                 model.refresh()
@@ -320,6 +355,7 @@ struct LibraryGridView: View {
                         status: model.status(for: manga),
                         fraction: model.progressFraction(for: manga),
                         isActive: model.lastMangaID == manga.id,
+                        isSelected: model.selectedMangaID == manga.id,
                         onOpen: { model.openReader(manga: manga) },
                         onRestart: { model.restartManga(manga) },
                         onToggleRead: {
@@ -330,8 +366,27 @@ struct LibraryGridView: View {
                             model.openChapter(chapter, manga: manga)
                         }
                     )
+                    .id(manga.id)
                 }
             }
+            .background {
+                GeometryReader { proxy in
+                    Color.clear
+                        .onAppear { updateColumns(width: proxy.size.width) }
+                        .onChange(of: proxy.size.width) { _, width in
+                            updateColumns(width: width)
+                        }
+                }
+            }
+        }
+    }
+
+    private func updateColumns(width: CGFloat) {
+        let spacing: CGFloat = 24
+        let minimum: CGFloat = 220
+        let count = max(1, Int((width + spacing) / (minimum + spacing)))
+        if model.libraryColumns != count {
+            model.libraryColumns = count
         }
     }
 

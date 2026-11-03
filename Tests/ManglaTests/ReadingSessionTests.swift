@@ -40,6 +40,52 @@ final class ReadingSessionTests: XCTestCase {
         XCTAssertEqual(session.seekRequest, WebtoonSeekRequest(id: 0, page: 0))
     }
 
+    @MainActor
+    func testChapterPickerFiltersAndOpensAnotherChapter() {
+        let model = AppModel()
+        model.persistenceEnabled = false
+
+        let chapters = [
+            chapter(id: "chapter-1", name: "Volume 1"),
+            chapter(id: "chapter-2", name: "Volume 2"),
+            chapter(id: "chapter-3", name: "Bonus"),
+        ]
+        let manga = MangaItem(
+            id: "manga",
+            title: "Manga",
+            containerURL: URL(fileURLWithPath: "/tmp/Manga"),
+            chapters: chapters
+        )
+        let collectionID = UUID()
+        model.collections = [
+            MangaCollection(
+                id: collectionID,
+                name: "Collection",
+                directoryURL: URL(fileURLWithPath: "/tmp/Collection"),
+                mangas: [manga],
+                isAvailable: true,
+                lastMangaID: nil,
+                bookmark: nil
+            )
+        ]
+        model.selectedCollectionID = collectionID
+
+        let session = ReadingSession(model: model, manga: manga, chapter: chapters[0])
+        defer { session.close() }
+
+        session.showChapterPicker()
+        XCTAssertTrue(session.isChapterPickerVisible)
+
+        session.chapterQuery = "volume"
+        XCTAssertEqual(session.chapterEntries.map(\.chapter.id), ["chapter-1", "chapter-2"])
+
+        session.openChapter(chapters[1])
+
+        XCTAssertFalse(session.isChapterPickerVisible)
+        XCTAssertEqual(session.chapterQuery, "")
+        XCTAssertEqual(session.chapter.id, "chapter-2")
+    }
+
     private func chapter(id: String, name: String) -> ChapterItem {
         ChapterItem(
             id: id,

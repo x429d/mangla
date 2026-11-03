@@ -127,6 +127,37 @@ final class SpreadBuilderTests: XCTestCase {
         XCTAssertEqual(spreads.map(\.pageIndices), [[0, 1], [2], [3, 4], [5]])
     }
 
+    func testCoverOffsetKeepsTheFirstPageAlone() {
+        let pages = (0..<5).map { _ in page(1000, 1500) }
+        let spreads = SpreadBuilder.spreads(
+            pages: pages,
+            mode: .spread,
+            firstPageAsCover: true
+        )
+        XCTAssertEqual(spreads.map(\.pageIndices), [[0], [1, 2], [3, 4]])
+    }
+
+    func testCoverOffsetResumesPairingAfterAWideCover() {
+        let pages = [
+            page(2000, 1200),
+            page(1000, 1500),
+            page(1000, 1500),
+            page(1000, 1500),
+        ]
+        let spreads = SpreadBuilder.spreads(
+            pages: pages,
+            mode: .spread,
+            firstPageAsCover: true
+        )
+        XCTAssertEqual(spreads.map(\.pageIndices), [[0], [1, 2], [3]])
+    }
+
+    func testWithoutCoverOffsetPairingStartsAtZero() {
+        let pages = (0..<5).map { _ in page(1000, 1500) }
+        let spreads = SpreadBuilder.spreads(pages: pages, mode: .spread)
+        XCTAssertEqual(spreads.map(\.pageIndices), [[0, 1], [2, 3], [4]])
+    }
+
     func testSingleModeProducesOneSpreadPerPage() {
         let pages = [page(1000, 1500), page(1000, 1500), page(1000, 1500)]
         let spreads = SpreadBuilder.spreads(pages: pages, mode: .single)
@@ -193,5 +224,200 @@ final class PageLayoutTests: XCTestCase {
         XCTAssertEqual(layout.surfaceRect.width, 1000, accuracy: 0.6)
         XCTAssertEqual(layout.pageRects.count, 2)
         XCTAssertEqual(layout.pageRects[0].maxX, layout.pageRects[1].minX, accuracy: 0.6)
+    }
+}
+
+final class ChapterIndexTests: XCTestCase {
+    private func chapter(_ title: String, _ index: Int) -> ChapterItem {
+        ChapterItem(
+            id: "chapter-\(index)",
+            title: title,
+            containerURL: URL(fileURLWithPath: "/tmp/chapter-\(index)"),
+            pages: []
+        )
+    }
+
+    func testSearchKeepsOriginalChapterNumbers() {
+        let chapters = [
+            chapter("Volume 1", 0),
+            chapter("Bonus", 1),
+            chapter("Volume 2", 2),
+        ]
+
+        let entries = ChapterIndex.entries(chapters, query: "volume")
+        XCTAssertEqual(entries.map(\.chapter.title), ["Volume 1", "Volume 2"])
+        XCTAssertEqual(entries.map(\.index), [0, 2])
+        XCTAssertEqual(entries.map(\.id), ["chapter-0", "chapter-2"])
+    }
+
+    func testEmptySearchKeepsEveryChapter() {
+        let chapters = [chapter("1", 0), chapter("2", 1)]
+        XCTAssertEqual(ChapterIndex.filter(chapters, query: "   ").count, 2)
+        XCTAssertTrue(ChapterIndex.filter(chapters, query: "missing").isEmpty)
+    }
+}
+
+final class ChapterMenuTests: XCTestCase {
+    private func chapter(_ index: Int) -> ChapterItem {
+        ChapterItem(
+            id: "chapter-\(index)",
+            title: "\(index + 1)",
+            containerURL: URL(fileURLWithPath: "/tmp/chapter-\(index)"),
+            pages: []
+        )
+    }
+
+    func testLongMenusAreSplitIntoRanges() {
+        let chapters = (0..<95).map(chapter)
+        let groups = ChapterMenu.groups(chapters)
+
+        XCTAssertEqual(groups.count, 3)
+        XCTAssertEqual(groups.map(\.lowerBound), [1, 41, 81])
+        XCTAssertEqual(groups.map(\.upperBound), [40, 80, 95])
+        XCTAssertEqual(groups.map(\.chapters.count), [40, 40, 15])
+        XCTAssertEqual(groups[2].chapters.first?.id, chapters[80].id)
+    }
+
+    func testShortMenusStayInOneGroup() {
+        let groups = ChapterMenu.groups((0..<7).map(chapter), size: 10)
+        XCTAssertEqual(groups.count, 1)
+        XCTAssertEqual(groups[0].lowerBound, 1)
+        XCTAssertEqual(groups[0].upperBound, 7)
+    }
+
+    func testEmptyMenuHasNoGroups() {
+        XCTAssertTrue(ChapterMenu.groups([]).isEmpty)
+    }
+}
+
+final class LibraryOrderingTests: XCTestCase {
+    private func manga(
+        id: String,
+        title: String,
+        chapters: Int,
+        addedAt: Date? = nil
+    ) -> MangaItem {
+        let chapterItems = (0..<chapters).map { index in
+            ChapterItem(
+                id: "\(id)-chapter-\(index)",
+                title: "\(index + 1)",
+                containerURL: URL(fileURLWithPath: "/tmp/\(id)-\(index)"),
+                pages: []
+            )
+        }
+        return MangaItem(
+            id: id,
+            title: title,
+            containerURL: URL(fileURLWithPath: "/tmp/\(id)"),
+            chapters: chapterItems,
+            addedAt: addedAt
+        )
+    }
+
+    private func progress(_ updatedAt: Date) -> MangaProgress {
+        MangaProgress(chapters: [:], lastChapterID: nil, updatedAt: updatedAt)
+    }
+
+    func testNameSortIsNaturalAndCaseInsensitive() {
+        let items = [
+            manga(id: "b", title: "Volume 10", chapters: 1),
+            manga(id: "a", title: "volume 2", chapters: 1),
+            manga(id: "c", title: "Alpha", chapters: 1),
+        ]
+        let sorted = LibraryOrdering.sorted(items, by: .name, progress: [:])
+        XCTAssertEqual(sorted.map(\.title), ["Alpha", "volume 2", "Volume 10"])
+    }
+
+    func testRecentSortPutsUnreadLast() {
+        let now = Date()
+        let items = [
+            manga(id: "old", title: "Old", chapters: 1),
+            manga(id: "new", title: "New", chapters: 1),
+            manga(id: "unread", title: "Unread", chapters: 1),
+        ]
+        let reading = [
+            "old": progress(now.addingTimeInterval(-3600)),
+            "new": progress(now),
+        ]
+        let sorted = LibraryOrdering.sorted(items, by: .recent, progress: reading)
+        XCTAssertEqual(sorted.map(\.id), ["new", "old", "unread"])
+    }
+
+    func testChapterCountSortIsDescending() {
+        let items = [
+            manga(id: "small", title: "Small", chapters: 1),
+            manga(id: "large", title: "Large", chapters: 9),
+            manga(id: "medium", title: "Medium", chapters: 4),
+        ]
+        let sorted = LibraryOrdering.sorted(items, by: .chapterCount, progress: [:])
+        XCTAssertEqual(sorted.map(\.id), ["large", "medium", "small"])
+    }
+
+    func testDateAddedSortPutsNewestFirstAndMissingDatesLast() {
+        let now = Date()
+        let items = [
+            manga(id: "old", title: "Old", chapters: 1, addedAt: now.addingTimeInterval(-7200)),
+            manga(id: "new", title: "New", chapters: 1, addedAt: now),
+            manga(id: "unknown", title: "Unknown", chapters: 1),
+        ]
+        let sorted = LibraryOrdering.sorted(items, by: .dateAdded, progress: [:])
+        XCTAssertEqual(sorted.map(\.id), ["new", "old", "unknown"])
+    }
+
+    func testTiesFallBackToTitle() {
+        let date = Date()
+        let items = [
+            manga(id: "b", title: "Beta", chapters: 1, addedAt: date),
+            manga(id: "a", title: "Alpha", chapters: 1, addedAt: date),
+        ]
+        let sorted = LibraryOrdering.sorted(items, by: .dateAdded, progress: [:])
+        XCTAssertEqual(sorted.map(\.id), ["a", "b"])
+    }
+}
+
+final class LibrarySelectionTests: XCTestCase {
+    private func manga(_ index: Int) -> MangaItem {
+        MangaItem(
+            id: "manga-\(index)",
+            title: "Manga \(index)",
+            containerURL: URL(fileURLWithPath: "/tmp/manga-\(index)"),
+            chapters: []
+        )
+    }
+
+    func testFirstMoveSelectsTheFirstCard() {
+        let items = (0..<6).map(manga)
+        XCTAssertEqual(
+            LibrarySelection.move(from: nil, direction: .right, mangas: items, columns: 3),
+            "manga-0"
+        )
+    }
+
+    func testArrowsMoveWithinAndAcrossRows() {
+        let items = (0..<7).map(manga)
+        XCTAssertEqual(
+            LibrarySelection.move(from: "manga-1", direction: .right, mangas: items, columns: 3),
+            "manga-2"
+        )
+        XCTAssertEqual(
+            LibrarySelection.move(from: "manga-1", direction: .down, mangas: items, columns: 3),
+            "manga-4"
+        )
+        XCTAssertEqual(
+            LibrarySelection.move(from: "manga-4", direction: .up, mangas: items, columns: 3),
+            "manga-1"
+        )
+        XCTAssertEqual(
+            LibrarySelection.move(from: "manga-0", direction: .left, mangas: items, columns: 3),
+            "manga-0"
+        )
+        XCTAssertEqual(
+            LibrarySelection.move(from: "manga-6", direction: .down, mangas: items, columns: 3),
+            "manga-6"
+        )
+    }
+
+    func testEmptyLibraryHasNoSelection() {
+        XCTAssertNil(LibrarySelection.move(from: nil, direction: .down, mangas: [], columns: 4))
     }
 }

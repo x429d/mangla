@@ -309,12 +309,29 @@ enum LegacyWorkspaceBookmark {
     }
 }
 
+// MARK: - Library preferences
+
+enum LibraryPreferences {
+    private static let sortKey = "mangla.library.sort"
+
+    static var sort: LibrarySort {
+        get {
+            guard let raw = AppDefaults.shared.string(forKey: sortKey),
+                let value = LibrarySort(rawValue: raw)
+            else { return .name }
+            return value
+        }
+        set { AppDefaults.shared.set(newValue.rawValue, forKey: sortKey) }
+    }
+}
+
 // MARK: - Reader preferences
 
 enum ReaderPreferences {
     private static let layoutKey = "mangla.reader.layout"
     private static let fitKey = "mangla.reader.fit"
     private static let directionKey = "mangla.reader.direction"
+    private static let coverPageOffsetKey = "mangla.reader.coverPageOffset"
 
     static var layoutMode: LayoutMode {
         get {
@@ -344,5 +361,19 @@ enum ReaderPreferences {
             return value
         }
         set { AppDefaults.shared.set(newValue.rawValue, forKey: directionKey) }
+    }
+
+    /// Most manga and comics start with a single-page cover. Keeping page 0
+    /// alone makes the following two-page spreads line up with the artwork.
+    /// The default is on, but a comic with a printed spread cover can turn it
+    /// off from the reader sidebar.
+    static var coverPageOffset: Bool {
+        get {
+            guard AppDefaults.shared.object(forKey: coverPageOffsetKey) != nil else {
+                return true
+            }
+            return AppDefaults.shared.bool(forKey: coverPageOffsetKey)
+        }
+        set { AppDefaults.shared.set(newValue, forKey: coverPageOffsetKey) }
     }
 }

@@ -147,6 +147,7 @@ final class ReadingSession {
     private var storedLayoutMode: LayoutMode
     private var storedFitMode: FitMode
     private var storedDirection: ReadingDirection
+    private var storedCoverPageOffset: Bool
 
     private(set) var pageSlots: [PageSlot] = []
     private(set) var spreads: [ReaderSpread] = []
@@ -161,7 +162,9 @@ final class ReadingSession {
     // Control-layer overlays
     private(set) var isHelpVisible = false
     private(set) var isPageEntryVisible = false
+    private(set) var isChapterPickerVisible = false
     var pageEntryText = ""
+    var chapterQuery = ""
 
     let bridge = ReaderBridge()
     let chrome = ReaderChromeState()
@@ -187,6 +190,7 @@ final class ReadingSession {
         self.storedLayoutMode = ReaderPreferences.layoutMode
         self.storedFitMode = ReaderPreferences.fitMode
         self.storedDirection = ReaderPreferences.direction
+        self.storedCoverPageOffset = ReaderPreferences.coverPageOffset
         self.progressDelay = progressDelay
 
         let resumePage =
@@ -227,9 +231,24 @@ final class ReadingSession {
         }
     }
 
+    var coverPageOffset: Bool {
+        get { storedCoverPageOffset }
+        set {
+            guard newValue != storedCoverPageOffset else { return }
+            storedCoverPageOffset = newValue
+            ReaderPreferences.coverPageOffset = newValue
+            rebuildSpreads(anchorPage: currentPageIndex)
+            zoom = 1
+        }
+    }
+
     func toggleDirection() {
         guard storedLayoutMode != .webtoon else { return }
         direction = storedDirection == .rtl ? .ltr : .rtl
+    }
+
+    func toggleCoverPageOffset() {
+        coverPageOffset.toggle()
     }
 
     // MARK: Derived state
@@ -271,6 +290,15 @@ final class ReadingSession {
 
     var title: String { manga.title }
     var chapterTitle: String { chapter.title }
+
+    /// Chapters of the open manga filtered by the picker's search field.
+    var chapterEntries: [IndexedChapter] {
+        ChapterIndex.entries(manga.chapters, query: chapterQuery)
+    }
+
+    func isChapterCompleted(_ chapter: ChapterItem) -> Bool {
+        model?.progress[manga.id]?.chapters[chapter.id]?.isCompleted == true
+    }
 
     var prefetchSources: [PageSource] {
         guard !pageSlots.isEmpty else { return [] }
@@ -317,7 +345,11 @@ final class ReadingSession {
     }
 
     private func rebuildSpreads(anchorPage: Int) {
-        spreads = SpreadBuilder.spreads(pages: pageSlots, mode: storedLayoutMode)
+        spreads = SpreadBuilder.spreads(
+            pages: pageSlots,
+            mode: storedLayoutMode,
+            firstPageAsCover: storedCoverPageOffset
+        )
         guard !spreads.isEmpty else {
             spreadIndex = 0
             currentPageIndex = 0
@@ -466,6 +498,8 @@ final class ReadingSession {
         currentPageIndex = 0
         zoom = 1
         isLoadingChapter = true
+        isChapterPickerVisible = false
+        chapterQuery = ""
         // A seek request from the previous chapter must not move the new
         // webtoon canvas to an unrelated page during its initial layout.
         seekRequest = WebtoonSeekRequest(id: 0, page: 0)
@@ -497,8 +531,46 @@ final class ReadingSession {
     func showHelp() {
         isPageEntryVisible = false
         pageEntryText = ""
+        isChapterPickerVisible = false
+        chapterQuery = ""
         isHelpVisible = true
         chrome.hideAll()
+    }
+
+    func showChapterPicker() {
+        guard !manga.chapters.isEmpty else { return }
+        isHelpVisible = false
+        isPageEntryVisible = false
+        pageEntryText = ""
+        chapterQuery = ""
+        isChapterPickerVisible = true
+        chrome.hideAll()
+    }
+
+    func hideChapterPicker() {
+        guard isChapterPickerVisible else { return }
+        isChapterPickerVisible = false
+        chapterQuery = ""
+        bridge.focus()
+    }
+
+    func toggleChapterPicker() {
+        if isChapterPickerVisible {
+            hideChapterPicker()
+        } else {
+            showChapterPicker()
+        }
+    }
+
+    /// Jumps to any chapter of the open manga without leaving the reader.
+    func openChapter(_ chapter: ChapterItem) {
+        isChapterPickerVisible = false
+        chapterQuery = ""
+        guard chapter.id != self.chapter.id else {
+            bridge.focus()
+            return
+        }
+        switchTo(manga: manga, chapter: chapter, startPage: 0)
     }
 
     func hideHelp() {
@@ -518,6 +590,8 @@ final class ReadingSession {
     func beginPageEntry() {
         guard totalPages > 0 else { return }
         isHelpVisible = false
+        isChapterPickerVisible = false
+        chapterQuery = ""
         isPageEntryVisible = true
         pageEntryText = ""
         chrome.hideAll()
@@ -570,7 +644,9 @@ final class ReadingSession {
         chrome.hideAll()
         isHelpVisible = false
         isPageEntryVisible = false
+        isChapterPickerVisible = false
         pageEntryText = ""
+        chapterQuery = ""
         toastTask?.cancel()
     }
 

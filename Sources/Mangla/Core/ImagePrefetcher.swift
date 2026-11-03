@@ -135,6 +135,17 @@ actor ImagePrefetcher {
         }
     }
 
+    /// Responds to system memory pressure while the reader stays open. Cached
+    /// pages and speculative decodes are dropped, but an in-flight visible
+    /// decode is allowed to finish so the page being read does not disappear.
+    /// The epoch bump keeps its result out of the cache.
+    func trimMemory() {
+        epoch &+= 1
+        for entry in speculativeTasks.values { entry.task.cancel() }
+        speculativeTasks.removeAll()
+        cache.removeAllObjects()
+    }
+
     /// Drops every decoded page and stops speculative work. In-flight visible
     /// decodes may still finish, but their results are discarded.
     func releaseMemory() {

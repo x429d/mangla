@@ -170,9 +170,17 @@ final class PageFormatTests: XCTestCase {
         let base = URL(fileURLWithPath: "/tmp")
         XCTAssertTrue(PageFormat.isComicFile(base.appendingPathComponent("A.CBZ")))
         XCTAssertTrue(PageFormat.isComicFile(base.appendingPathComponent("A.cbr")))
+        XCTAssertTrue(PageFormat.isComicFile(base.appendingPathComponent("A.zip")))
+        XCTAssertTrue(PageFormat.isComicFile(base.appendingPathComponent("A.rar")))
         XCTAssertTrue(PageFormat.isComicFile(base.appendingPathComponent("A.pdf")))
-        XCTAssertFalse(PageFormat.isComicFile(base.appendingPathComponent("A.zip")))
         XCTAssertFalse(PageFormat.isComicFile(base.appendingPathComponent("A.jpg")))
+    }
+
+    func testJPEGXLIsAnImagePage() {
+        let base = URL(fileURLWithPath: "/tmp")
+        XCTAssertTrue(PageFormat.isImageFile(base.appendingPathComponent("001.jxl")))
+        XCTAssertTrue(PageFormat.isImageName("COVER.JXL"))
+        XCTAssertTrue(PageFormat.isImageEntry("Chapter 1/001.jxl"))
     }
 }
 
@@ -261,6 +269,21 @@ final class ArchiveScannerTests: XCTestCase {
         let snapshot = try LibraryScanner.scan(projectURL: root)
         XCTAssertEqual(snapshot.mangas.count, 1)
         XCTAssertEqual(snapshot.mangas[0].pageCount, 2)
+    }
+
+    func testPlainZipAndRarExtensionsAreScanned() throws {
+        try writeArchive(at: "One Shot.zip", entries: ["01.jpg", "02.jpg"])
+        try writeArchive(at: "Archive Chapter.rar", entries: ["01.jpg"])
+        let series = root.appendingPathComponent("Series", isDirectory: true)
+        try FileManager.default.createDirectory(at: series, withIntermediateDirectories: true)
+        try writeArchive(at: "Series/Chapter 1.zip", entries: ["01.jpg", "02.jpg", "03.jpg"])
+
+        let snapshot = try LibraryScanner.scan(projectURL: root)
+        XCTAssertEqual(snapshot.mangas.map(\.title), ["Archive Chapter", "One Shot", "Series"])
+
+        let seriesManga = try XCTUnwrap(snapshot.mangas.last)
+        XCTAssertEqual(seriesManga.chapters.map(\.title), ["Chapter 1"])
+        XCTAssertEqual(seriesManga.pageCount, 3)
     }
 
     func testCorruptArchiveIsSkippedWithoutFailingTheScan() throws {

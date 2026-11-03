@@ -130,7 +130,7 @@ struct WelcomeView: View {
                             ))
                 } else {
                     HStack(spacing: 8) {
-                        ForEach(["WEBP", "JPG", "PNG", "AVIF", "HEIC"], id: \.self) { format in
+                        ForEach(["WEBP", "JPG", "PNG", "AVIF", "HEIC", "JXL"], id: \.self) { format in
                             Text(format)
                                 .font(.system(size: 9, weight: .bold, design: .rounded))
                                 .tracking(0.8)

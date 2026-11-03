@@ -19,7 +19,7 @@ enum LibraryScanError: LocalizedError {
 /// ```
 /// Project/Manga/001.webp ...              (single chapter)
 /// Project/Manga/Chapter 01/001.webp ...   (chapter folders)
-/// Project/Manga/Chapter 01.cbz ...        (archive chapters)
+/// Project/Manga/Chapter 01.cbz ...        (archive chapters; .zip/.rar too)
 /// Project/Manga/Chapter 01.pdf ...        (PDF chapters)
 /// Project/One Shot.cbz                    (a loose archive is its own manga)
 /// ```
@@ -34,6 +34,7 @@ enum LibraryScanner {
     private static let logger = Logger(subsystem: "com.mangla.reader", category: "scanner")
     private static let resourceKeys: Set<URLResourceKey> = [
         .isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey, .nameKey,
+        .creationDateKey, .contentModificationDateKey,
     ]
 
     // MARK: - Public API
@@ -69,7 +70,8 @@ enum LibraryScanner {
             if let manga = makeManga(
                 container: root,
                 projectRoot: root,
-                title: root.lastPathComponent
+                title: root.lastPathComponent,
+                addedAt: creationDate(of: root)
             ) {
                 mangas.append(manga)
             }
@@ -78,13 +80,18 @@ enum LibraryScanner {
                 if let manga = makeManga(
                     container: entry.url,
                     projectRoot: root,
-                    title: entry.url.lastPathComponent
+                    title: entry.url.lastPathComponent,
+                    addedAt: entry.createdAt
                 ) {
                     mangas.append(manga)
                 }
             }
             for file in directComics {
-                if let manga = makeStandaloneManga(file: file.url, projectRoot: root) {
+                if let manga = makeStandaloneManga(
+                    file: file.url,
+                    projectRoot: root,
+                    addedAt: file.createdAt
+                ) {
                     mangas.append(manga)
                 }
             }
@@ -98,7 +105,12 @@ enum LibraryScanner {
 
     // MARK: - Manga / chapter construction
 
-    private static func makeManga(container: URL, projectRoot: URL, title: String) -> MangaItem? {
+    private static func makeManga(
+        container: URL,
+        projectRoot: URL,
+        title: String,
+        addedAt: Date?
+    ) -> MangaItem? {
         let mangaID = relativePath(of: container, from: projectRoot)
         let stableMangaID = mangaID.isEmpty ? "." : mangaID
 
@@ -117,11 +129,16 @@ enum LibraryScanner {
             id: stableMangaID,
             title: title.trimmingCharacters(in: .whitespacesAndNewlines),
             containerURL: container,
-            chapters: chapters
+            chapters: chapters,
+            addedAt: addedAt
         )
     }
 
-    private static func makeStandaloneManga(file: URL, projectRoot: URL) -> MangaItem? {
+    private static func makeStandaloneManga(
+        file: URL,
+        projectRoot: URL,
+        addedAt: Date?
+    ) -> MangaItem? {
         let title = file.deletingPathExtension().lastPathComponent
         guard let chapter = makeComicChapter(file: file, projectRoot: projectRoot, title: title) else {
             return nil
@@ -131,7 +148,8 @@ enum LibraryScanner {
             id: mangaID.isEmpty ? "." : mangaID,
             title: title.trimmingCharacters(in: .whitespacesAndNewlines),
             containerURL: file,
-            chapters: [chapter]
+            chapters: [chapter],
+            addedAt: addedAt
         )
     }
 
@@ -265,6 +283,7 @@ enum LibraryScanner {
         let url: URL
         let isDirectory: Bool
         let isSymlink: Bool
+        let createdAt: Date?
     }
 
     private static func listing(of directory: URL) -> [Entry]? {
@@ -288,7 +307,8 @@ enum LibraryScanner {
                 return Entry(
                     url: url,
                     isDirectory: values.isDirectory ?? false,
-                    isSymlink: values.isSymbolicLink ?? false
+                    isSymlink: values.isSymbolicLink ?? false,
+                    createdAt: values.creationDate ?? values.contentModificationDate
                 )
             } catch {
                 logger.debug(
@@ -296,6 +316,11 @@ enum LibraryScanner {
                 return nil
             }
         }
+    }
+
+    private static func creationDate(of url: URL) -> Date? {
+        let values = try? url.resourceValues(forKeys: [.creationDateKey, .contentModificationDateKey])
+        return values?.creationDate ?? values?.contentModificationDate
     }
 
     private static func containsPages(in directory: URL, depth: Int) -> Bool {

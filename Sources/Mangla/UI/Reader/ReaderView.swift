@@ -41,6 +41,11 @@ struct ReaderView: View {
                     .zIndex(3)
             }
 
+            if session.isChapterPickerVisible {
+                ChapterPickerOverlay(session: session)
+                    .zIndex(3.5)
+            }
+
             if session.isHelpVisible {
                 ReaderShortcutsOverlay(session: session)
                     .zIndex(4)
@@ -49,6 +54,7 @@ struct ReaderView: View {
         .background(Theme.readerBackground)
         .animation(.easeOut(duration: 0.14), value: session.isHelpVisible)
         .animation(.easeOut(duration: 0.12), value: session.isPageEntryVisible)
+        .animation(.easeOut(duration: 0.12), value: session.isChapterPickerVisible)
         .onAppear {
             session.chrome.hideAll()
             WindowChrome.setTrafficLightsHidden(true)

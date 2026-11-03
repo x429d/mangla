@@ -21,6 +21,7 @@ final class AppModel {
             guard newValue != storedFilter else { return }
             storedFilter = newValue
             libraryPage = 0
+            selectedMangaID = nil
         }
     }
 
@@ -30,12 +31,35 @@ final class AppModel {
             guard newValue != storedSearchText else { return }
             storedSearchText = newValue
             libraryPage = 0
+            selectedMangaID = nil
         }
     }
 
     var libraryPage = 0
     let pageSize = LibraryPagination.defaultPageSize
     var columnVisibility: NavigationSplitViewVisibility = .all
+
+    /// Keyboard selection in the library grid. It is separate from the reader
+    /// so opening a card and coming back keeps the last position visible.
+    var selectedMangaID: String?
+    /// Updated by the grid geometry so up/down move exactly one row.
+    var libraryColumns = 4
+    /// Incremented by Cmd+F; the sidebar focuses its search field on change.
+    var searchFocusRequest = 0
+    var isLibrarySearchFocused = false
+
+    private var storedSort: LibrarySort = LibraryPreferences.sort
+
+    var sort: LibrarySort {
+        get { storedSort }
+        set {
+            guard newValue != storedSort else { return }
+            storedSort = newValue
+            LibraryPreferences.sort = newValue
+            libraryPage = 0
+            selectedMangaID = nil
+        }
+    }
 
     // Reader
     var reading: ReadingSession?
@@ -367,6 +391,7 @@ final class AppModel {
         searchText = ""
         filter = .all
         libraryPage = 0
+        selectedMangaID = nil
         saveNow()
     }
 
@@ -400,6 +425,7 @@ final class AppModel {
             searchText = ""
             filter = .all
             libraryPage = 0
+            selectedMangaID = nil
         }
 
         saveNow()
@@ -511,6 +537,12 @@ final class AppModel {
             collections[index].lastMangaID = snapshot.mangas.first?.id
         }
 
+        if id == selectedCollectionID, let selected = selectedMangaID,
+            !snapshot.mangas.contains(where: { $0.id == selected })
+        {
+            selectedMangaID = nil
+        }
+
         startWatcher(for: id)
 
         if id == selectedCollectionID, let reading {
@@ -574,7 +606,7 @@ final class AppModel {
     var filteredMangas: [MangaItem] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        return mangas.filter { manga in
+        let matches = mangas.filter { manga in
             if !query.isEmpty {
                 let matchesManga = manga.title.localizedCaseInsensitiveContains(query)
                 let matchesChapter = manga.chapters.contains {
@@ -592,6 +624,7 @@ final class AppModel {
                 return status(for: manga) == .completed
             }
         }
+        return LibraryOrdering.sorted(matches, by: storedSort, progress: progress)
     }
 
     func filterCount(_ filter: LibraryFilter) -> Int {
@@ -626,11 +659,13 @@ final class AppModel {
     func nextPage() {
         guard currentPage + 1 < pageCount else { return }
         libraryPage = currentPage + 1
+        selectedMangaID = nil
     }
 
     func previousPage() {
         guard currentPage > 0 else { return }
         libraryPage = currentPage - 1
+        selectedMangaID = nil
     }
 
     func resetPage() {
@@ -639,6 +674,45 @@ final class AppModel {
 
     func clampPage() {
         libraryPage = currentPage
+    }
+
+    // MARK: - Library keyboard selection
+
+    func focusLibrarySearch() {
+        if columnVisibility == .detailOnly {
+            withAnimation(.smooth(duration: 0.2)) {
+                columnVisibility = .all
+            }
+        }
+        searchFocusRequest &+= 1
+    }
+
+    func moveLibrarySelection(_ direction: LibraryMoveDirection) {
+        let items = filteredMangas
+        guard
+            let id = LibrarySelection.move(
+                from: selectedMangaID,
+                direction: direction,
+                mangas: items,
+                columns: libraryColumns
+            )
+        else { return }
+
+        selectedMangaID = id
+        if let index = items.firstIndex(where: { $0.id == id }) {
+            libraryPage = index / pageSize
+        }
+    }
+
+    /// Return in the library opens the selected card, or the first card when
+    /// nothing is selected yet.
+    func openSelectedManga() {
+        let selected = selectedMangaID.flatMap { id in
+            filteredMangas.first { $0.id == id }
+        }
+        guard let manga = selected ?? filteredMangas.first else { return }
+        selectedMangaID = manga.id
+        openReader(manga: manga)
     }
 
     // MARK: - Progress
@@ -813,6 +887,8 @@ final class AppModel {
 
         let page = restart ? 0 : (startPage ?? resumePage(for: manga, chapter: chapter))
         reading?.close()
+        selectedMangaID = manga.id
+        isLibrarySearchFocused = false
 
         let session = ReadingSession(
             model: self,

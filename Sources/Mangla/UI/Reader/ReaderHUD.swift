@@ -110,6 +110,12 @@ struct ReaderSidebar: View {
 
             Spacer().frame(height: 8)
 
+            controlRow(label: t(.coverOffset)) { coverOffsetToggle }
+                .disabled(session.layoutMode != .spread)
+                .opacity(session.layoutMode == .spread ? 1 : 0.38)
+
+            Spacer().frame(height: 8)
+
             controlRow(label: t(.zoom)) { zoomControls }
 
             Spacer(minLength: 16)
@@ -161,11 +167,24 @@ struct ReaderSidebar: View {
                 .truncationMode(.middle)
 
             if let chapterSuffix {
-                Text(chapterSuffix)
-                    .font(.system(size: 10.5, weight: .medium))
-                    .foregroundStyle(Theme.textTertiary)
-                    .lineLimit(2)
-                    .truncationMode(.middle)
+                Button {
+                    session.showChapterPicker()
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(chapterSuffix)
+                            .font(.system(size: 10.5, weight: .medium))
+                            .foregroundStyle(Theme.textTertiary)
+                            .lineLimit(2)
+                            .truncationMode(.middle)
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.system(size: 7, weight: .bold))
+                            .foregroundStyle(Theme.textTertiary.opacity(0.8))
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(t(.chapterPickerHelp))
+                .accessibilityLabel(Text(t(.chapterPickerHelp)))
             }
 
             Spacer(minLength: 0)
@@ -294,6 +313,25 @@ struct ReaderSidebar: View {
         )
     }
 
+    private var coverOffsetToggle: some View {
+        HStack(spacing: 6) {
+            Toggle(
+                "",
+                isOn: Binding(
+                    get: { session.coverPageOffset },
+                    set: { session.coverPageOffset = $0 }
+                )
+            )
+            .labelsHidden()
+            .toggleStyle(.switch)
+            .controlSize(.mini)
+            .tint(Theme.accent)
+
+            Spacer(minLength: 0)
+        }
+        .help(t(.coverOffsetHelp))
+    }
+
     private var zoomControls: some View {
         HStack(spacing: 2) {
             HUDIconButton(symbol: "minus", help: t(.zoomOutHelp), size: 24) {
@@ -407,6 +445,13 @@ struct ReaderSidebar: View {
 
     private var footer: some View {
         HStack(spacing: 6) {
+            HUDIconButton(
+                symbol: "list.bullet",
+                help: t(.chapterPickerHelp)
+            ) {
+                session.showChapterPicker()
+            }
+
             HUDIconButton(
                 symbol: "questionmark",
                 help: t(.controlsHelp)

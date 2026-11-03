@@ -6,7 +6,15 @@ enum SpreadBuilder {
     /// Wide scans (width > height) always occupy a spread of their own and do
     /// not shift the parity of the following pages: pairing simply resumes with
     /// the next page.
-    static func spreads(pages: [PageSlot], mode: LayoutMode) -> [ReaderSpread] {
+    ///
+    /// With `firstPageAsCover`, page 0 is shown alone and pairing starts at
+    /// page 1. Most manga and comics put a single-page cover first; pairing
+    /// from zero would move every real spread by one page.
+    static func spreads(
+        pages: [PageSlot],
+        mode: LayoutMode,
+        firstPageAsCover: Bool = false
+    ) -> [ReaderSpread] {
         guard !pages.isEmpty else { return [] }
 
         if mode != .spread {
@@ -15,6 +23,10 @@ enum SpreadBuilder {
 
         var result: [ReaderSpread] = []
         var index = 0
+        if firstPageAsCover {
+            result.append(ReaderSpread(id: 0, pageIndices: [0]))
+            index = 1
+        }
         while index < pages.count {
             if pages[index].isWide {
                 result.append(ReaderSpread(id: index, pageIndices: [index]))
